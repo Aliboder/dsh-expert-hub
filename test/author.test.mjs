@@ -403,6 +403,43 @@ test('importSkillFromPath 支持技能目录、多个技能目录和单个 .md',
   }
 })
 
+test('createExpert 支持内联技能与创建后导入技能目录', async () => {
+  const ctx = await makeContext()
+  const source = await mkdtemp(join(tmpdir(), 'expert-hub-create-skill-'))
+  try {
+    const external = join(source, 'external')
+    await mkdir(external, { recursive: true })
+    await writeFile(join(external, 'SKILL.md'), '---\nname: external-skill\n---\n\n# External\n', 'utf8')
+    await writeFile(join(external, 'data.txt'), 'resource', 'utf8')
+
+    const card = await createExpert({
+      displayName: 'Create With Skills',
+      roleText: '角色',
+      skills: [{ name: 'inline', content: '# Inline\n\nBody.' }],
+      skillPaths: [external],
+    }, ctx.paths)
+    const detail = await readInstalledDetail(ctx.paths, card.id)
+    assert.deepEqual(detail.skills.map((skill) => skill.name).sort(), ['external-skill', 'inline'])
+    assert.equal(existsSync(join(ctx.paths.expertsRoot, card.id, 'skills', 'external-skill', 'data.txt')), true)
+
+    // A bad skill path fails creation and leaves no expert folder behind.
+    await assert.rejects(
+      () => createExpert({ displayName: 'Broken Path', roleText: '角色', skillPaths: [join(source, 'missing')] }, ctx.paths),
+      /技能路径不存在/,
+    )
+    assert.equal((await scanInstalled(ctx.paths)).cards.some((item) => item.displayName === 'Broken Path'), false)
+
+    // Inline skill with empty content fails before writing.
+    await assert.rejects(
+      () => createExpert({ displayName: 'Bad Skill', roleText: '角色', skills: [{ name: 'x', content: '  ' }] }, ctx.paths),
+      /内容不能为空/,
+    )
+  } finally {
+    await ctx.cleanup()
+    await rm(source, { recursive: true, force: true })
+  }
+})
+
 // ---------------------------------------------------------------------------
 // trash list + restore
 // ---------------------------------------------------------------------------

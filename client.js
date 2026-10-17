@@ -564,6 +564,9 @@ window.__ModuleLoader__.load({
         'create.role': 'role.md 角色提示词 *',
         'create.roleHint': '支持 Markdown；会作为该专家的系统角色提示注入会话。',
         'create.rolePlaceholder': '你是一位……',
+        'create.skillsHint': '每个技能写入 skills/<name>/SKILL.md；也可以添加本机技能目录，创建后一起导入。',
+        'create.addSkillPath': '添加技能目录',
+        'create.pendingSkillPaths': '创建后导入的技能目录',
         'create.avatar': '头像',
         'create.avatarHint': 'PNG / JPG / WebP，建议 256×256，最大 2 MB。',
         'create.avatarPick': '选择图片',
@@ -757,6 +760,9 @@ window.__ModuleLoader__.load({
         'create.role': 'role.md prompt *',
         'create.roleHint': 'Markdown supported; injected into the session as this expert’s system role prompt.',
         'create.rolePlaceholder': 'You are…',
+        'create.skillsHint': 'Each skill becomes skills/<name>/SKILL.md; you can also queue local skill folders to import after creation.',
+        'create.addSkillPath': 'Queue skill folder',
+        'create.pendingSkillPaths': 'Skill folders to import after creation',
         'create.avatar': 'Avatar',
         'create.avatarHint': 'PNG, JPG, or WebP; 256×256 recommended; max 2 MB.',
         'create.avatarPick': 'Choose image',
@@ -2180,61 +2186,18 @@ window.__ModuleLoader__.load({
       }
 
       var previewUrl = avatarDataUrl !== '' ? avatarDataUrl : strOf(card.avatarUrl)
-      var skillNodes = []
-      for (var si2 = 0; si2 < skills.length; si2++) {
-        var skillRow = skills[si2] !== null && typeof skills[si2] === 'object' ? skills[si2] : {}
-        skillNodes.push(el('div', { className: 'eh-skill-row', key: 'skill:' + si2 },
-          el('div', { className: 'eh-form-row' },
-            el('input', {
-              className: 'eh-input',
-              type: 'text',
-              value: skillRow.name !== undefined ? skillRow.name : '',
-              placeholder: t('edit.skillNamePlaceholder'),
-              onChange: (function (at) {
-                return function (event) { changeSkill(at, 'name', event.target.value) }
-              })(si2)
-            }),
-            el('button', {
-              className: 'eh-btn eh-btn-sm', type: 'button', 'data-variant': 'danger',
-              onClick: (function (at) {
-                return function () { removeSkillRow(at) }
-              })(si2)
-            }, t('page.delete'))),
-          el('textarea', {
-            className: 'eh-textarea',
-            rows: 4,
-            value: skillRow.content !== undefined ? skillRow.content : '',
-            placeholder: t('edit.skillContentPlaceholder'),
-            onChange: (function (at) {
-              return function (event) { changeSkill(at, 'content', event.target.value) }
-            })(si2)
-          })))
-      }
-      var skillsView = el('div', { className: 'eh-panel-card' },
-        el('h3', { className: 'eh-card-title' }, t('edit.skillsTitle')),
-        el('p', { className: 'eh-hint' }, t('edit.skillsHint')),
-        skills.length === 0 ? el('p', { className: 'eh-hint' }, t('edit.skillsEmpty')) : null,
-        skillNodes.length > 0 ? el('div', { className: 'eh-skill-list' }, skillNodes) : null,
-        el('div', { className: 'eh-form-actions' },
-          el('button', { className: 'eh-btn eh-btn-sm', type: 'button', onClick: addSkillRow }, t('edit.addSkill'))),
-        el('div', { className: 'eh-field' },
-          el('label', { className: 'eh-label' }, t('edit.skillImport')),
-          el('input', {
-            className: 'eh-input',
-            type: 'text',
-            value: skillPath,
-            placeholder: t('edit.skillPathPlaceholder'),
-            onChange: function (event) { setSkillPath(event.target.value) }
-          })),
-        el('div', { className: 'eh-form-actions' },
-          el('button', {
-            className: 'eh-btn', type: 'button',
-            disabled: skillBusy,
-            onClick: importSkill
-          },
-            skillBusy ? el('span', { className: 'eh-spin', 'aria-hidden': 'true' }) : null,
-            skillBusy ? t('edit.skillImporting') : t('edit.skillImport'))),
-        skillNotice !== '' ? el('p', { className: 'eh-hint' }, skillNotice) : null)
+      var skillsView = el(SkillsEditor, {
+        t: t,
+        skills: skills,
+        skillPath: skillPath,
+        skillBusy: skillBusy,
+        skillNotice: skillNotice,
+        onChangeSkill: changeSkill,
+        onAddSkill: addSkillRow,
+        onRemoveSkill: removeSkillRow,
+        onPathChange: setSkillPath,
+        onImport: importSkill
+      })
       return el(Overlay, {
         t: t,
         title: t('edit.title'),
@@ -2284,6 +2247,92 @@ window.__ModuleLoader__.load({
       }
     }
 
+    /**
+     * 技能编辑器：新建与编辑共用。editing 时按钮直接导入；新建时把路径加入
+     * 待导入列表，由 host 在创建专家后导入。
+     */
+    function SkillsEditor (props) {
+      var t = props.t
+      var skills = arrOf(props.skills)
+      var paths = arrOf(props.paths)
+      var skillPath = strOf(props.skillPath)
+      var skillNotice = strOf(props.skillNotice)
+
+      var nodes = []
+      for (var i = 0; i < skills.length; i++) {
+        var row = skills[i] !== null && typeof skills[i] === 'object' ? skills[i] : {}
+        nodes.push(el('div', { className: 'eh-skill-row', key: 'skill:' + i },
+          el('div', { className: 'eh-form-row' },
+            el('input', {
+              className: 'eh-input',
+              type: 'text',
+              value: row.name !== undefined ? row.name : '',
+              placeholder: t('edit.skillNamePlaceholder'),
+              onChange: (function (at) {
+                return function (event) { props.onChangeSkill(at, 'name', event.target.value) }
+              })(i)
+            }),
+            el('button', {
+              className: 'eh-btn eh-btn-sm', type: 'button', 'data-variant': 'danger',
+              onClick: (function (at) {
+                return function () { props.onRemoveSkill(at) }
+              })(i)
+            }, t('page.delete'))),
+          el('textarea', {
+            className: 'eh-textarea',
+            rows: 4,
+            value: row.content !== undefined ? row.content : '',
+            placeholder: t('edit.skillContentPlaceholder'),
+            onChange: (function (at) {
+              return function (event) { props.onChangeSkill(at, 'content', event.target.value) }
+            })(i)
+          })))
+      }
+
+      var pathNodes = []
+      for (var p = 0; p < paths.length; p++) {
+        pathNodes.push(el('li', { className: 'eh-trash-item', key: 'path:' + p },
+          el('code', { className: 'eh-source-path' }, strOf(paths[p])),
+          el('button', {
+            className: 'eh-btn eh-btn-sm', type: 'button', 'data-variant': 'danger',
+            onClick: (function (at) {
+              return function () { props.onRemovePath(at) }
+            })(p)
+          }, t('page.delete'))))
+      }
+
+      return el('div', { className: 'eh-panel-card' },
+        el('h3', { className: 'eh-card-title' }, t('edit.skillsTitle')),
+        el('p', { className: 'eh-hint' }, t(props.paths !== undefined ? 'create.skillsHint' : 'edit.skillsHint')),
+        skills.length === 0 ? el('p', { className: 'eh-hint' }, t('edit.skillsEmpty')) : null,
+        nodes.length > 0 ? el('div', { className: 'eh-skill-list' }, nodes) : null,
+        el('div', { className: 'eh-form-actions' },
+          el('button', { className: 'eh-btn eh-btn-sm', type: 'button', onClick: props.onAddSkill }, t('edit.addSkill'))),
+        el('div', { className: 'eh-field' },
+          el('label', { className: 'eh-label' }, t('edit.skillImport')),
+          el('input', {
+            className: 'eh-input',
+            type: 'text',
+            value: skillPath,
+            placeholder: t('edit.skillPathPlaceholder'),
+            onChange: function (event) { props.onPathChange(event.target.value) }
+          })),
+        el('div', { className: 'eh-form-actions' },
+          el('button', {
+            className: 'eh-btn', type: 'button',
+            disabled: props.skillBusy === true,
+            onClick: props.paths !== undefined ? props.onAddPath : props.onImport
+          },
+            props.skillBusy === true ? el('span', { className: 'eh-spin', 'aria-hidden': 'true' }) : null,
+            props.skillBusy === true ? t('edit.skillImporting') : t(props.paths !== undefined ? 'create.addSkillPath' : 'edit.skillImport'))),
+        pathNodes.length > 0
+          ? el('div', { className: 'eh-field' },
+              el('span', { className: 'eh-label' }, t('create.pendingSkillPaths')),
+              el('ul', { className: 'eh-trash-list' }, pathNodes))
+          : null,
+        skillNotice !== '' ? el('p', { className: 'eh-hint' }, skillNotice) : null)
+    }
+
     function CreateForm (props) {
       var t = props.t
       var valuesState = React.useState(emptyFormValues)
@@ -2302,6 +2351,15 @@ window.__ModuleLoader__.load({
       var avatarErrorState = React.useState('')
       var avatarError = avatarErrorState[0]
       var setAvatarError = avatarErrorState[1]
+      var skillsState = React.useState([])
+      var skills = skillsState[0]
+      var setSkills = skillsState[1]
+      var skillPathState = React.useState('')
+      var skillPath = skillPathState[0]
+      var setSkillPath = skillPathState[1]
+      var pendingPathsState = React.useState([])
+      var pendingPaths = pendingPathsState[0]
+      var setPendingPaths = pendingPathsState[1]
 
       function onChange (field, value) {
         setValues(function (previous) {
@@ -2334,6 +2392,46 @@ window.__ModuleLoader__.load({
         })
       }
 
+      function changeSkillRow (index, field, value) {
+        setSkills(function (previous) {
+          var next = previous.slice()
+          var row = Object.assign({}, next[index])
+          row[field] = value
+          next[index] = row
+          return next
+        })
+        if (formError !== '') setFormError('')
+      }
+
+      function addSkillRow () {
+        setSkills(function (previous) { return previous.concat([{ name: '', content: '' }]) })
+      }
+
+      function removeSkillRow (index) {
+        setSkills(function (previous) {
+          return previous.filter(function (_row, at) { return at !== index })
+        })
+      }
+
+      function addSkillPath () {
+        var path = strOf(skillPath)
+        if (path === '') {
+          setFormError(t('import.emptyPath'))
+          return
+        }
+        setPendingPaths(function (previous) {
+          return previous.includes(path) ? previous : previous.concat([path])
+        })
+        setSkillPath('')
+        if (formError !== '') setFormError('')
+      }
+
+      function removeSkillPath (index) {
+        setPendingPaths(function (previous) {
+          return previous.filter(function (_path, at) { return at !== index })
+        })
+      }
+
       function submit () {
         if (submitting) return
         setFormError('')
@@ -2360,6 +2458,18 @@ window.__ModuleLoader__.load({
           setFormError(t('create.idInvalid'))
           return
         }
+        var skillRows = []
+        for (var si = 0; si < skills.length; si++) {
+          var row = skills[si] !== null && typeof skills[si] === 'object' ? skills[si] : {}
+          var skillName = strOf(row.name)
+          var skillContent = typeof row.content === 'string' ? row.content : ''
+          if (skillName === '' && strOf(skillContent) === '') continue
+          if (skillName === '' || strOf(skillContent) === '') {
+            setFormError(t('edit.skillInvalid'))
+            return
+          }
+          skillRows.push({ name: skillName, content: skillContent })
+        }
         var expert = {
           id: id,
           displayName: displayName,
@@ -2367,7 +2477,9 @@ window.__ModuleLoader__.load({
           description: description,
           tags: parseTags(values.tags),
           quickPrompts: parseLines(values.quickPrompts, 6),
-          roleText: roleText
+          roleText: roleText,
+          skills: skillRows,
+          skillPaths: pendingPaths
         }
         var input = { expert: expert }
         if (avatarDataUrl !== '') input.avatarDataUrl = avatarDataUrl
@@ -2379,6 +2491,9 @@ window.__ModuleLoader__.load({
             setValues(emptyFormValues())
             setAvatarDataUrl('')
             setAvatarError('')
+            setSkills([])
+            setPendingPaths([])
+            setSkillPath('')
           }
         }, function () {
           setSubmitting(false)
@@ -2404,6 +2519,18 @@ window.__ModuleLoader__.load({
             setAvatarDataUrl('')
             setAvatarError('')
           }
+        }),
+        el(SkillsEditor, {
+          t: t,
+          skills: skills,
+          paths: pendingPaths,
+          skillPath: skillPath,
+          onChangeSkill: changeSkillRow,
+          onAddSkill: addSkillRow,
+          onRemoveSkill: removeSkillRow,
+          onPathChange: setSkillPath,
+          onAddPath: addSkillPath,
+          onRemovePath: removeSkillPath
         }),
         formError !== '' ? el('p', { className: 'eh-form-error', role: 'alert' }, formError) : null,
         el('div', { className: 'eh-form-actions' },

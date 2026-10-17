@@ -247,6 +247,20 @@ export async function createExpert(input, paths) {
   }
 
   const order = Number(input.order)
+  const inlineSkills = normalizeSkillRows(input.skills) ?? []
+  const rawPaths = Array.isArray(input.skillPaths) ? input.skillPaths : (input.skillPath !== undefined ? [input.skillPath] : [])
+  const skillPaths = []
+  for (const raw of rawPaths) {
+    const path = textOf(raw)
+    if (path === '' || skillPaths.includes(path)) continue
+    const absolute = expandHome(path)
+    try {
+      await stat(absolute)
+    } catch {
+      throw new Error(`技能路径不存在：${path}`)
+    }
+    skillPaths.push(path)
+  }
   const draft = {
     id: baseId,
     displayName,
@@ -262,7 +276,12 @@ export async function createExpert(input, paths) {
     initPrompt: textOf(input.initPrompt),
     order: Number.isFinite(order) ? order : 200,
     roleText,
-    skills: [],
+    skills: inlineSkills.map((row) => ({
+      name: row.name,
+      description: excerptOf(row.content, 120),
+      content: row.content,
+      hasSkillMd: true,
+    })),
     sourceKind: 'custom',
     sourceLabel: '本机自建',
   }
@@ -286,9 +305,18 @@ export async function createExpert(input, paths) {
       encoding: 'utf8',
       mode: 0o600,
     })
+    if (inlineSkills.length > 0) await replaceSkills(dir, inlineSkills)
   } catch (error) {
     await rm(dir, { recursive: true, force: true }).catch(() => {})
     throw error
+  }
+
+  try {
+    for (const path of skillPaths) await importSkillFromPath(id, path, paths)
+  } catch (error) {
+    // Keep creation atomic: a failed skill import removes the new expert again.
+    await rm(dir, { recursive: true, force: true }).catch(() => {})
+    throw new Error(`导入技能失败，专家未创建：${error?.message ?? error}`)
   }
 
   const detail = await readInstalledDetail(paths, id)

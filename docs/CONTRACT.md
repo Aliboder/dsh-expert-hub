@@ -133,7 +133,7 @@ body 上限 1 MiB（头像单独 8 MiB）。
 | 5 | POST | `/refresh` | `{}` | `{ ok, revision, counts }` |
 | 6 | POST | `/import` | `{ ids: string[] }` | `{ ok, imported:{id,dir}[], failed:{id,error}[] }`；已安装的 id 走"更新"（覆盖为源内容），自建专家不会被覆盖 |
 | 7 | POST | `/import-path` | `{ path: string }` | `{ ok, experts:Card[], imported:{id,dir}[] , warnings:string[] }` |
-| 8 | POST | `/create` | `{ expert:{ id?, displayName, description, profession?, tags?, roleText, category? }, avatarDataUrl? }` | `{ ok, expert:Card }` |
+| 8 | POST | `/create` | `{ expert:{ id?, displayName, description, profession?, tags?, roleText, category?, skills?: [{name,content}], skillPaths?: string[] }, avatarDataUrl? }` | `{ ok, expert:Card }`；内联 skills 与 `skillPaths` 会在同一事务里写入，任一技能导入失败则回滚整个创建 |
 | 9 | POST | `/update` | `{ id, patch:{ displayName?, description?, profession?, tags?, quickPrompts?, skills?: [{name,content}] }, roleText?, avatarDataUrl? }` | `{ ok, expert:Card }`；`skills` 存在时整树替换（保留未改名技能目录里的资源文件） |
 | 10 | POST | `/delete` | `{ id }` | `{ ok }`；软删除到回收站 |
 | 11 | GET | `/events` | — | `text/event-stream`；事件 `state`，data 为 `{ revision }`；每 25s 一行 `: ping` |
