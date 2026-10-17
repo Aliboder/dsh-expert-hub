@@ -281,6 +281,10 @@ window.__ModuleLoader__.load({
 .eh-result-list { margin: 0; padding-left: 16px; color: var(--dsw-alias-label-tertiary, inherit); }
 .eh-result-warns { display: flex; flex-direction: column; gap: 3px;
   color: var(--dsw-alias-state-warn-primary, #c77700); }
+.eh-ai-example { margin: 0; padding: 8px 10px; border-radius: 9px; font-size: 12px; line-height: 1.6;
+  overflow-wrap: anywhere; color: var(--dsw-alias-label-secondary, inherit);
+  background: var(--dsw-alias-bg-layer-2, rgba(127,127,127,.08));
+  border: 1px dashed var(--dsw-alias-border-l2, rgba(127,127,127,.28)); }
 
 /* ── 遮罩 / 抽屉 / 对话框 ─────────────────────────────────────────────── */
 .eh-overlay { position: fixed; inset: 0; z-index: 1000; display: flex;
@@ -566,17 +570,19 @@ window.__ModuleLoader__.load({
         'create.idInvalid': 'ID 只能包含小写字母、数字与连字符。',
 
         'import.title': '导入专家',
-        'import.subtitle': '支持网页地址（zip / tar.gz / md）或本机文件夹、压缩包路径。',
-        'import.urlLabel': '网页导入',
-        'import.urlPlaceholder': 'https://example.com/expert.zip',
-        'import.urlButton': '从网址导入',
-        'import.pathLabel': '本地路径导入',
+        'import.subtitle': '本地文件夹、压缩包或 .md 可以直接导入；网页与在线内容交给 AI 整理更省事。',
+        'import.aiTitle': 'AI 帮我导入',
+        'import.aiBody': '不用再手动处理网址：把专家链接、网页内容或一段介绍直接发到对话里，并说「帮我导入这个专家」。AI 会读取、整理成专家条目后写入专家库；来源里有多位专家时会先问你选哪一位。',
+        'import.aiExample': '例如：帮我导入这个专家 https://example.com/expert，或者直接粘贴专家介绍。',
+        'import.aiCopy': '复制导入指令',
+        'import.aiCopied': '已复制，发给 AI 即可',
+        'import.aiTemplate': '请帮我把这个专家整理并导入（链接或内容如下）：\n\n',
+        'import.pathLabel': '高级：从本机路径导入',
         'import.pathPlaceholder': 'D:\\Experts\\my-expert 或 ~/Downloads/expert.zip',
         'import.pathButton': '从路径导入',
         'import.working': '导入中…',
         'import.done': '导入完成：新增 {n} 个专家',
         'import.failed': '导入失败：{message}',
-        'import.invalidUrl': '请输入 http(s) 网址。',
         'import.emptyPath': '请输入本地路径。',
         'import.result': '导入结果',
         'import.resultNew': '新增 {n} 个专家',
@@ -737,17 +743,19 @@ window.__ModuleLoader__.load({
         'create.idInvalid': 'The ID may only contain lowercase letters, digits, and hyphens.',
 
         'import.title': 'Import experts',
-        'import.subtitle': 'Accepts a web URL (zip, tar.gz, md) or a local folder or archive path.',
-        'import.urlLabel': 'Import from URL',
-        'import.urlPlaceholder': 'https://example.com/expert.zip',
-        'import.urlButton': 'Import from URL',
-        'import.pathLabel': 'Import from local path',
+        'import.subtitle': 'Import a local folder, archive, or .md directly; let the AI organize web pages and online content.',
+        'import.aiTitle': 'Let the AI import it',
+        'import.aiBody': 'No URL form needed: paste the expert link, page content, or description into the conversation and say "import this expert". The AI reads it, organizes a complete expert entry, and writes it to the library; if the source contains several experts it asks which one first.',
+        'import.aiExample': 'e.g. "Import this expert: https://example.com/expert", or paste the expert description.',
+        'import.aiCopy': 'Copy import instruction',
+        'import.aiCopied': 'Copied — send it to the AI',
+        'import.aiTemplate': 'Please organize and import this expert (link or content below):\n\n',
+        'import.pathLabel': 'Advanced: import from local path',
         'import.pathPlaceholder': 'D:\\Experts\\my-expert or ~/Downloads/expert.zip',
         'import.pathButton': 'Import from path',
         'import.working': 'Importing…',
         'import.done': 'Import complete: {n} new experts',
         'import.failed': 'Import failed: {message}',
-        'import.invalidUrl': 'Enter an http(s) URL.',
         'import.emptyPath': 'Enter a local path.',
         'import.result': 'Import result',
         'import.resultNew': '{n} new experts',
@@ -2305,11 +2313,62 @@ window.__ModuleLoader__.load({
             : null))
     }
 
-    // ── 导入盒（URL / 本地路径）───────────────────────────────────────────
+    // ── AI 导入提示卡（网页/在线内容交给 AI）────────────────────────────
+
+    function AiImportCard (props) {
+      var t = props.t
+      var copiedState = React.useState(false)
+      var copied = copiedState[0]
+      var setCopied = copiedState[1]
+
+      function markCopied () {
+        setCopied(true)
+        window.setTimeout(function () { setCopied(false) }, 2200)
+      }
+
+      function copy () {
+        var template = t('import.aiTemplate')
+        try {
+          if (typeof navigator !== 'undefined' && navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+            navigator.clipboard.writeText(template).then(markCopied, function () {
+              if (typeof props.onCopied === 'function') props.onCopied()
+            })
+            return
+          }
+        } catch (error) {
+          // fall through to the legacy path
+        }
+        try {
+          var area = document.createElement('textarea')
+          area.value = template
+          area.style.position = 'fixed'
+          area.style.opacity = '0'
+          document.body.appendChild(area)
+          area.select()
+          var ok = document.execCommand && document.execCommand('copy')
+          document.body.removeChild(area)
+          if (ok === true) markCopied()
+          else if (typeof props.onCopied === 'function') props.onCopied()
+        } catch (error) {
+          if (typeof props.onCopied === 'function') props.onCopied()
+        }
+      }
+
+      return el('div', { className: 'eh-panel-card eh-ai-import' },
+        el('h3', { className: 'eh-card-title' }, t('import.aiTitle')),
+        el('p', { className: 'eh-hint' }, t('import.aiBody')),
+        el('p', { className: 'eh-ai-example' }, t('import.aiExample')),
+        el('div', { className: 'eh-form-actions' },
+          el('button', {
+            className: 'eh-btn', type: 'button', 'data-variant': 'primary',
+            onClick: copy
+          }, copied ? t('import.aiCopied') : t('import.aiCopy'))))
+    }
+
+    // ── 导入盒（本机路径）────────────────────────────────────────────────
 
     function ImportBox (props) {
       var t = props.t
-      var kind = props.kind === 'path' ? 'path' : 'url'
       var valueState = React.useState('')
       var value = valueState[0]
       var setValue = valueState[1]
@@ -2320,23 +2379,18 @@ window.__ModuleLoader__.load({
       var result = resultState[0]
       var setResult = resultState[1]
       var busyKey = props.busyKey !== undefined ? props.busyKey : ''
-      var myKey = kind === 'url' ? 'import-web' : 'import-path'
-      var working = busyKey === myKey
+      var working = busyKey === 'import-path'
 
       function submit () {
         if (working) return
         var trimmed = strOf(value)
         setLocalError('')
         if (trimmed === '') {
-          setLocalError(t(kind === 'url' ? 'import.invalidUrl' : 'import.emptyPath'))
-          return
-        }
-        if (kind === 'url' && !/^https?:\/\//i.test(trimmed)) {
-          setLocalError(t('import.invalidUrl'))
+          setLocalError(t('import.emptyPath'))
           return
         }
         setResult(null)
-        props.onImport(kind, trimmed).then(function (value) {
+        props.onImport(trimmed).then(function (value) {
           if (value !== null && value !== undefined) setResult(value)
         })
       }
@@ -2375,14 +2429,13 @@ window.__ModuleLoader__.load({
         el('h3', { className: 'eh-card-title' }, t('import.title')),
         el('p', { className: 'eh-hint' }, t('import.subtitle')),
         el('div', { className: 'eh-field' },
-          el('label', { className: 'eh-label', htmlFor: 'eh-import-' + kind },
-            t(kind === 'url' ? 'import.urlLabel' : 'import.pathLabel')),
+          el('label', { className: 'eh-label', htmlFor: 'eh-import-path' }, t('import.pathLabel')),
           el('input', {
-            id: 'eh-import-' + kind,
+            id: 'eh-import-path',
             className: 'eh-input',
-            type: kind === 'url' ? 'url' : 'text',
+            type: 'text',
             value: value,
-            placeholder: t(kind === 'url' ? 'import.urlPlaceholder' : 'import.pathPlaceholder'),
+            placeholder: t('import.pathPlaceholder'),
             onChange: function (event) {
               setValue(event.target.value)
               if (localError !== '') setLocalError('')
@@ -2392,12 +2445,11 @@ window.__ModuleLoader__.load({
         el('div', { className: 'eh-form-actions' },
           el('button', {
             className: 'eh-btn', type: 'button',
-            'data-variant': kind === 'url' ? 'primary' : undefined,
             disabled: busyKey !== '',
             onClick: submit
           },
             working ? el('span', { className: 'eh-spin', 'aria-hidden': 'true' }) : null,
-            working ? t('import.working') : t(kind === 'url' ? 'import.urlButton' : 'import.pathButton'))),
+            working ? t('import.working') : t('import.pathButton'))),
         resultView)
     }
 
@@ -2687,13 +2739,11 @@ window.__ModuleLoader__.load({
         })
       }
 
-      function importExternal (kind, value) {
+      function importExternal (value) {
         if (laneBusy) return Promise.resolve(null)
-        setBusy(kind === 'url' ? 'import-web' : 'import-path')
+        setBusy('import-path')
         setNotice(null)
-        var route = kind === 'url' ? '/import-web' : '/import-path'
-        var body = kind === 'url' ? { url: value } : { path: value }
-        return postJson(API_BASE + route, body).then(function (result) {
+        return postJson(API_BASE + '/import-path', { path: value }).then(function (result) {
           var imported = arrOf(result !== null && result !== undefined ? result.imported : null)
           var resultWarnings = arrOf(result !== null && result !== undefined ? result.warnings : null)
           setNotice({ kind: 'ok', text: t('import.done', { n: imported.length }) })
@@ -2882,15 +2932,9 @@ window.__ModuleLoader__.load({
             onCreate: createExpert
           }),
           el('div', { className: 'eh-create-side' },
+            el(AiImportCard, { t: t }),
             el(ImportBox, {
               t: t,
-              kind: 'url',
-              busyKey: busy,
-              onImport: importExternal
-            }),
-            el(ImportBox, {
-              t: t,
-              kind: 'path',
               busyKey: busy,
               onImport: importExternal
             }))))

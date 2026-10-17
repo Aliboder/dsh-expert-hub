@@ -19,6 +19,7 @@ import { createPaths } from './src/paths.js'
 import { createRoutes } from './src/routes.js'
 import { openSelections } from './src/selections.js'
 import { createSwitcher } from './src/switch.js'
+import { registerExpertTools } from './src/tools.js'
 import { DEFAULT_SOURCE_PATH } from './src/workbuddy.js'
 
 /** Cordis plugin name. */
@@ -125,6 +126,16 @@ export async function apply(ctx, config = {}) {
 
   ctx.inject(['commands'], (commandsCtx) => {
     ctx.effect(() => registerExpertCommand(commandsCtx, { paths, switcher }), 'dsh-expert-hub:command')
+  })
+
+  // The AI-mediated import surface: `expert_import` reads one source (or
+  // writes one model-normalized expert). Staged so a late tools service still
+  // gets the registration.
+  ctx.inject(['tools'], (toolsCtx) => {
+    ctx.effect(
+      () => registerExpertTools(toolsCtx, { paths, switcher, logger: { warn } }),
+      'dsh-expert-hub:tools',
+    )
   })
 
   ctx.effect(() => () => {

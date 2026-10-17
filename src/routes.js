@@ -329,10 +329,6 @@ export function createRoutes({ paths, switcher, selections, ensureApplied, logge
       await handleImport(req, res)
       return
     }
-    if (path === '/import-web') {
-      await handleSourceImport(req, res, 'web')
-      return
-    }
     if (path === '/import-path') {
       await handleSourceImport(req, res, 'path')
       return

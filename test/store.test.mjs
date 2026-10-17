@@ -3,7 +3,7 @@
  */
 
 import assert from 'node:assert/strict'
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -123,8 +123,10 @@ const legacyState = await installedState(paths)
 assert.equal(legacyState.ids.has('legacy-expert'), true)
 assert.equal(legacyState.fingerprints['legacy-expert'], undefined)
 
-// Delete removes the folder and a second delete fails cleanly.
-await deleteExpert(paths, 'demo-expert')
+// Delete moves the folder into the plugin's trash (recoverable), not rm.
+const deleted = await deleteExpert(paths, 'demo-expert')
+assert.match(String(deleted.trash), /trash/)
+assert.equal((await stat(deleted.trash)).isDirectory(), true)
 const afterDelete = await scanInstalled(paths)
 assert.equal(afterDelete.cards.some((card) => card.id === 'demo-expert'), false)
 await assert.rejects(() => deleteExpert(paths, 'demo-expert'))

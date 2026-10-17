@@ -96,13 +96,24 @@ async function findAvatar(dir) {
   return null
 }
 
-/** Copy one draft skill directory into the installed folder. */
+/** Copy one draft skill directory into the installed folder, or write its
+ * inline content when the draft carries no source directory (AI-imported). */
 async function copySkill(skill, targetRoot) {
-  if (typeof skill.dir !== 'string' || skill.dir === '') return
-  const target = join(targetRoot, 'skills', skill.name)
-  await mkdir(join(targetRoot, 'skills'), { recursive: true })
-  await rm(target, { recursive: true, force: true })
-  await cp(skill.dir, target, { recursive: true, dereference: true, errorOnExist: false })
+  if (typeof skill.dir === 'string' && skill.dir !== '') {
+    const target = join(targetRoot, 'skills', skill.name)
+    await mkdir(join(targetRoot, 'skills'), { recursive: true })
+    await rm(target, { recursive: true, force: true })
+    await cp(skill.dir, target, { recursive: true, dereference: true, errorOnExist: false })
+    return
+  }
+  if (typeof skill.content === 'string' && skill.content.trim() !== '') {
+    const target = join(targetRoot, 'skills', skill.name)
+    await mkdir(target, { recursive: true })
+    await writeFile(join(target, 'SKILL.md'), `${normalizeText(skill.content)}\n`, {
+      encoding: 'utf8',
+      mode: 0o600,
+    })
+  }
 }
 
 /**
@@ -178,15 +189,27 @@ export async function installDraft(draft, paths, options = {}) {
   }
 }
 
-/** Delete one installed expert folder. */
+/** Delete one installed expert folder (soft delete: move to the trash). */
 export async function deleteExpert(paths, id) {
   const dir = expertDirOf(paths.expertsRoot, id)
   if (!isInside(paths.expertsRoot, dir)) throw new Error('专家目录越界')
   const manifest = await readManifest(dir)
   const yml = await readFileSafe(join(dir, 'expert.yml'))
   if (manifest === undefined && yml === '') throw new Error('该目录不是专家文件夹，拒绝删除')
-  await rm(dir, { recursive: true, force: true })
-  return { id, dir }
+  // Keep deletions recoverable: move the folder into the plugin's trash
+  // instead of deleting it outright.
+  const trashRoot = join(paths.stateDir, 'trash')
+  await mkdir(trashRoot, { recursive: true })
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-')
+  const target = join(trashRoot, `${id}-${stamp}`)
+  try {
+    await rename(dir, target)
+    return { id, dir, trash: target }
+  } catch (error) {
+    // Cross-device or locked folder: fall back to a recursive delete.
+    await rm(dir, { recursive: true, force: true })
+    return { id, dir, trash: null, warning: `无法移动到回收站，已直接删除：${error?.message ?? error}` }
+  }
 }
 
 /** Read a file as text, '' on any failure. */
@@ -262,6 +285,7 @@ async function cardFromDir(dir, dirName) {
 function sourceLabelOf(manifest) {
   if (manifest === undefined) return '本机自建'
   if (manifest.kind === 'workbuddy') return 'WorkBuddy 专家中心'
+  if (manifest.kind === 'ai') return 'AI 整理导入'
   if (manifest.kind === 'custom') return '本机自建'
   if (manifest.kind === 'web') return '网页导入'
   if (manifest.kind === 'path') return '本机目录导入'

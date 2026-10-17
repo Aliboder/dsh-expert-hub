@@ -15,7 +15,7 @@
 |---|---|
 | **WorkBuddy 专家市场** | 读取本机 WorkBuddy 已落盘的专家（`.codebuddy-plugin/plugin.json` + `agents/*.md`），展示头像、职业、标签、分类、快捷提示词，一键导入/更新/全部导入 |
 | **自建专家** | 设置页表单直接写 `expert.yml` + `role.md` + 头像，立刻出现在专家库与会话选择器里 |
-| **在线导入** | 支持 URL（zip / tar.gz / 单个 `.md`）与本机目录，自动识别 WorkBuddy 插件目录、DSH 专家文件夹、裸 agent markdown 三种布局 |
+| **AI 代为导入** | 把专家链接、网页内容或一段介绍直接发给 AI，由 AI 读取并整理成专家条目后写入专家库；不再需要用户自己填网址、找下载链接 |
 | **编辑与删除** | 已安装专家可改名称/职业/描述/标签/快捷提示词/角色正文/头像；删除有二次确认 |
 | **会话内切换** | 输入框旁的专家胶囊：头像 + 搜索 + 当前标记，选中即挂载"角色提示词 + 全部 skills"；「不用专家」随时退出 |
 | **选择可恢复** | 选择按会话持久化，DSH 重启或会话恢复后自动重新挂载 |
@@ -31,6 +31,10 @@
 | 专家详情（角色提示词 / 技能 / 快捷提示词） | 会话输入框旁的专家胶囊 |
 |---|---|
 | ![详情](docs/images/detail.png) | ![胶囊](docs/images/capsule.png) |
+
+| 新建与导入（AI 导入入口） |
+|---|
+| ![AI 导入](docs/images/ai-import.png) |
 
 
 ## 安装
@@ -57,8 +61,30 @@ dsh plugin --profile web add <本插件目录或包名>
   支持单个导入、批量导入、发现源更新后的「更新」。
 - **新建与导入**：
   - 新建：显示名、ID（可留空自动生成）、职业、描述、标签、快捷提示词、角色提示词（Markdown）、头像；
-  - 从网址导入：`https://…/expert.zip`、`https://…/expert.tar.gz`、`https://…/agent.md`；
-  - 从本机导入：目录路径或单个 `.md` 文件。
+  - AI 导入：页面里只保留说明和「复制导入指令」，把链接/内容发到对话里让 AI 整理；
+  - 本机导入（高级）：目录路径、压缩包或单个 `.md` 文件。
+
+### AI 代为导入（推荐）
+
+不需要再走"填网址 → 下载 → 解压 → 导入"的流程。在任意会话里直接把来源发给 AI 即可：
+
+```text
+帮我导入这个专家：https://example.com/some-expert
+```
+
+```text
+把下面这段专家介绍整理成一位专家并导入：
+（粘贴网页正文 / 专家说明 / SKILL.md 内容）
+```
+
+AI 的处理流程：
+
+1. **读取**：网页正文用 `web_fetch` 读取；专家压缩包、本机目录、单个 `.md` 交给插件读取；
+2. **整理**：归一成一位专家的完整条目——中文显示名、职业/称号、一句话简介、标签、快捷提示词、`role.md` 角色提示词（必要时附技能正文）；
+3. **写入**：调用 `expert_import({expert:{…}})` 写入 `~/.dsh/experts/<id>/`，并给出来源记录；
+4. **选用**（可选）：用户说"导入并直接用"时传 `activate: true`，立刻在当前会话启用。
+
+来源里有多位专家时，AI 会先问你要导入哪几位，再逐个写入；已有的同名专家不会被覆盖，会自动改用 `-2` 后缀。
 
 ### 会话内切换
 
@@ -100,7 +126,9 @@ dsh plugin --profile web add <本插件目录或包名>
 - 导入的 Markdown 会做 CRLF/BOM 归一与 `{{...}}` 模板消毒，避免破坏宿主提示词插值；
 - 专家库写入全部限制在 `~/.dsh/experts` 内，ID 只允许 `[a-z0-9-]`，删除前校验目录归属；
 - HTTP 接口仅监听 loopback、只接受同源 POST、请求体有上限、响应 `no-store`；
-- 在线导入拒绝内网/回环地址，zip 解压防目录穿越，跳过符号链接与可执行位文件。
+- 压缩包读取拒绝内网/回环地址，zip 解压防目录穿越，跳过符号链接与可执行位文件；
+- 删除专家是**软删除**：移到 `~/.dsh/expert-hub/trash/`，误删可从该目录恢复；
+- AI 导入写入的专家同样是**纯提示词与技能文本**：模型只负责整理，来源里的"指令"不会被当作插件行为执行；导入不会自动启用，除非用户明确要求 `activate`。
 
 ## 配置
 
@@ -117,19 +145,20 @@ dsh plugin --profile web add <本插件目录或包名>
 ## 开发
 
 ```sh
-npm test        # test/run.mjs：format / store / switch / importers / author
+npm test        # test/run.mjs：format / store / switch / importers / author / tools
 npm run check   # node --check 两个入口
 ```
 
 | 模块 | 职责 |
 |---|---|
-| `index.js` | 装配：paths / selections / switcher / routes / 生命周期事件 |
+| `index.js` | 装配：paths / selections / switcher / routes / tools / 生命周期事件 |
 | `src/workbuddy.js` | WorkBuddy 源目录扫描（富元数据 → 专家草稿） |
 | `src/store.js` | 专家库读写、指纹、卡片、详情、导入安装 |
 | `src/compose.js` | agent 作用域内挂载角色段 + skills |
 | `src/switch.js` | 串行切换事务、回滚、选择恢复 |
 | `src/selections.js` | 会话选择 sidecar |
-| `src/importers.js` | URL / 本机导入、zip/tar.gz 安全解压 |
+| `src/importers.js` | 压缩包 / 本机目录读取、zip/tar.gz 安全解压 |
+| `src/tools.js` | 模型工具 `expert_import`：来源读取 + AI 整理后的写入 |
 | `src/author.js` | 新建 / 编辑 / 删除自建专家 |
 | `src/routes.js` | `/expert-hub/*` 路由与 SSE |
 | `client.js` | 设置页 + 会话胶囊（浏览器半） |
