@@ -1,0 +1,9 @@
+# dsh-expert-hub bundle patch: inserts the Expert Hub plugin row.
+# The Host half serves /expert-hub/* on the shared webserver; the browser half
+# (declared by `dsh.client`) adds the Settings → Expert Center page, the
+# composer expert capsule, and the new-session expert control.
+- insert:
+    - id: expert-hub
+      name: dsh-expert-hub
+      config:
+        sourcePath: ~/.workbuddy/plugins/marketplaces/experts/plugins
