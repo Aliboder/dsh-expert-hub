@@ -517,6 +517,26 @@ export async function restoreTrash(paths, name) {
 }
 
 /**
+ * Permanently remove one trashed expert folder. Irreversible; callers must
+ * confirm with the user first.
+ */
+export async function purgeTrash(paths, name) {
+  assertPaths(paths)
+  const entry = textOf(name)
+  if (entry === '' || entry.includes('..') || /[\\/]/.test(entry)) throw new Error('回收站条目名不合法')
+  const target = join(paths.stateDir, 'trash', entry)
+  let info
+  try {
+    info = await stat(target)
+  } catch {
+    throw new Error('回收站条目不存在')
+  }
+  if (!info.isDirectory()) throw new Error('回收站条目不是目录')
+  await rm(target, { recursive: true, force: true })
+  return { name: entry }
+}
+
+/**
  * Update an existing expert. Metadata, `roleText`, the avatar and (optionally)
  * the whole skills tree can change; provenance fields are preserved.
  *

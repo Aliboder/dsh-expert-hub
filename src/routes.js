@@ -349,6 +349,14 @@ export function createRoutes({ paths, switcher, selections, ensureApplied, diagn
       sendJson(res, 200, { ok: true, expert })
       return
     }
+    if (path === '/purge-trash') {
+      const author = await import('./author.js')
+      const body = await readJsonBody(req, BODY_CAP)
+      const purged = await author.purgeTrash(paths, body.name)
+      bump()
+      sendJson(res, 200, { ok: true, ...purged })
+      return
+    }
     if (path === '/skill-import') {
       const author = await import('./author.js')
       const body = await readJsonBody(req, BODY_CAP_LARGE)

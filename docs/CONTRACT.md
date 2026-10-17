@@ -141,6 +141,7 @@ body 上限 1 MiB（头像单独 8 MiB）。
 | 13 | GET | `/trash` | — | `{ ok, items:[{name, id, displayName, deletedAt}] }` |
 | 14 | POST | `/restore-trash` | `{ name }` | `{ ok, expert:Card }`；目标 id 已存在时拒绝 |
 | 15 | POST | `/skill-import` | `{ id, path }` | `{ ok, expert:Card }`；path 支持技能目录 / 多个技能的父目录 / 单个 `.md` |
+| 16 | POST | `/purge-trash` | `{ name }` | `{ ok, name }`；永久删除回收站条目，不可恢复；路径穿越类 name 拒绝 |
 
 > 网页 URL 导入已移除：网页/在线内容改由模型工具 `expert_import`（§12）读取并整理，
 > 用户不再需要自己填写网址。`importers.js` 仍为工具读取压缩包/本机目录服务。

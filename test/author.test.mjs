@@ -18,6 +18,7 @@ import {
   deleteExpertCard,
   importSkillFromPath,
   listTrash,
+  purgeTrash,
   restoreTrash,
   updateExpert,
 } from '../src/author.js'
@@ -470,6 +471,26 @@ test('listTrash/restoreTrash 软删除后可恢复', async () => {
     const entry = trash2.find((item) => item.id === again.id)
     if (entry !== undefined) await assert.rejects(() => restoreTrash(ctx.paths, entry.name), /已存在/)
     await assert.rejects(() => restoreTrash(ctx.paths, '../evil'), /不合法/)
+  } finally {
+    await ctx.cleanup()
+  }
+})
+
+test('purgeTrash 永久删除回收站条目', async () => {
+  const ctx = await makeContext()
+  try {
+    const card = await createExpert({ displayName: 'Purge Me', roleText: '角色' }, ctx.paths)
+    await deleteExpertCard(card.id, ctx.paths)
+    const trash = await listTrash(ctx.paths)
+    assert.equal(trash.length, 1)
+
+    const removed = await purgeTrash(ctx.paths, trash[0].name)
+    assert.equal(removed.name, trash[0].name)
+    assert.equal((await listTrash(ctx.paths)).length, 0)
+    assert.equal(existsSync(join(ctx.paths.stateDir, 'trash', trash[0].name)), false)
+
+    await assert.rejects(() => purgeTrash(ctx.paths, trash[0].name), /不存在/)
+    await assert.rejects(() => purgeTrash(ctx.paths, '../evil'), /不合法/)
   } finally {
     await ctx.cleanup()
   }

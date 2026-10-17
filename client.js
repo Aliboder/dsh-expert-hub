@@ -128,10 +128,10 @@ window.__ModuleLoader__.load({
 .eh-bulk-hint { font-size: 11px; color: var(--dsw-alias-label-tertiary, inherit); }
 
 /* ── 卡片网格 ─────────────────────────────────────────────────────────── */
-.eh-grid { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px;
-  grid-template-columns: repeat(auto-fill, minmax(256px, 1fr)); }
-.eh-card { box-sizing: border-box; display: flex; flex-direction: column; gap: 8px; min-width: 0;
-  padding: 13px; border-radius: 14px;
+.eh-grid { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
+.eh-card { box-sizing: border-box; display: flex; flex-direction: column; gap: 7px; min-width: 0;
+  padding: 12px; border-radius: 13px;
   background: var(--dsw-alias-bg-layer-1, transparent);
   border: 1px solid var(--dsw-alias-border-l1, rgba(127,127,127,.26));
   transition: border-color .15s ease, box-shadow .15s ease; }
@@ -323,6 +323,11 @@ window.__ModuleLoader__.load({
 .eh-trash-item:first-child { border-top: 0; }
 .eh-trash-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .eh-trash-name { font-size: 13px; font-weight: 500; color: var(--dsw-alias-label-primary, inherit); }
+.eh-trash-actions { display: flex; align-items: center; gap: 6px; flex: none; }
+@media (max-width: 640px) {
+  .eh-trash-item { flex-wrap: wrap; }
+  .eh-trash-actions { width: 100%; justify-content: flex-end; }
+}
 
 /* ── 遮罩 / 抽屉 / 对话框 ─────────────────────────────────────────────── */
 .eh-overlay { position: fixed; inset: 0; z-index: 1000; display: flex;
@@ -600,7 +605,7 @@ window.__ModuleLoader__.load({
         'installed.updatable': '可更新',
         'installed.broken': '解析失败',
         'installed.confirmDelete': '确认删除',
-        'installed.deleteHint': '删除后不可恢复，专家文件夹会从本机移除。',
+        'installed.deleteHint': '删除后移入回收站，可在页面底部恢复。',
         'installed.deleteDone': '已删除「{name}」',
         'installed.updateOneDone': '已更新「{name}」',
         'installed.importOneDone': '已导入「{name}」',
@@ -752,6 +757,10 @@ window.__ModuleLoader__.load({
         'trash.hint': '删除的专家会先移到这里，可随时恢复。',
         'trash.restore': '恢复',
         'trash.restoring': '恢复中…',
+        'trash.purge': '永久删除',
+        'trash.confirmPurge': '确认永久删除？',
+        'trash.purged': '已永久删除「{name}」',
+        'trash.purgeFailed': '永久删除失败：{message}',
         'trash.deletedAt': '删除于 {time}',
         'trash.empty': '回收站是空的。',
         'trash.restored': '已恢复「{name}」',
@@ -822,7 +831,7 @@ window.__ModuleLoader__.load({
         'installed.updatable': 'Update available',
         'installed.broken': 'Broken',
         'installed.confirmDelete': 'Confirm delete',
-        'installed.deleteHint': 'This cannot be undone; the expert folder is removed from this machine.',
+        'installed.deleteHint': 'Moved to the recycle bin; you can restore it below.',
         'installed.deleteDone': 'Deleted “{name}”',
         'installed.updateOneDone': 'Updated “{name}”',
         'installed.importOneDone': 'Imported “{name}”',
@@ -974,6 +983,10 @@ window.__ModuleLoader__.load({
         'trash.hint': 'Deleted experts are moved here first and can be restored.',
         'trash.restore': 'Restore',
         'trash.restoring': 'Restoring…',
+        'trash.purge': 'Delete forever',
+        'trash.confirmPurge': 'Delete forever?',
+        'trash.purged': 'Permanently deleted “{name}”',
+        'trash.purgeFailed': 'Permanent delete failed: {message}',
         'trash.deletedAt': 'Deleted {time}',
         'trash.empty': 'Trash is empty.',
         'trash.restored': 'Restored “{name}”',
@@ -1836,6 +1849,27 @@ window.__ModuleLoader__.load({
             disabled: laneBusy || broken,
             onClick: function () { props.onAction(card, 'update') }
           }, t('page.update')))
+        }
+        if (props.confirmDelete === true) {
+          actions.push(el('button', {
+            key: 'confirm-delete', className: 'eh-btn eh-btn-sm', type: 'button',
+            'data-variant': 'danger',
+            disabled: laneBusy,
+            onClick: function () { props.onAction(card, 'confirm-delete') }
+          }, t('installed.confirmDelete')))
+          actions.push(el('button', {
+            key: 'cancel-delete', className: 'eh-btn eh-btn-sm', type: 'button',
+            disabled: laneBusy,
+            onClick: function () { props.onAction(card, 'cancel-delete') }
+          }, t('page.cancel')))
+        } else {
+          actions.push(el('button', {
+            key: 'delete', className: 'eh-btn eh-btn-sm', type: 'button',
+            'data-variant': 'danger',
+            disabled: laneBusy,
+            title: t('installed.deleteHint'),
+            onClick: function () { props.onAction(card, 'delete') }
+          }, t('page.delete')))
         }
       } else {
         if (!installed) {
@@ -3742,6 +3776,9 @@ window.__ModuleLoader__.load({
       var trashBusyState = React.useState('')
       var trashBusy = trashBusyState[0]
       var setTrashBusy = trashBusyState[1]
+      var trashConfirmState = React.useState('')
+      var trashConfirm = trashConfirmState[0]
+      var setTrashConfirm = trashConfirmState[1]
 
       function pull () {
         return fetchState(sessionId).then(function (payload) {
@@ -3789,6 +3826,12 @@ window.__ModuleLoader__.load({
         var timer = setTimeout(function () { setConfirmKey('') }, 4000)
         return function () { clearTimeout(timer) }
       }, [confirmKey])
+
+      React.useEffect(function () {
+        if (trashConfirm === '') return undefined
+        var timer = setTimeout(function () { setTrashConfirm('') }, 4000)
+        return function () { clearTimeout(timer) }
+      }, [trashConfirm])
 
       var config = data !== null && data.config !== null && typeof data.config === 'object' ? data.config : {}
       var installed = cardsOf(data, 'installed')
@@ -3920,6 +3963,26 @@ window.__ModuleLoader__.load({
         }, function (err) {
           failNotice('installed.actionFailed', err)
         }).then(function () { setBusy('') })
+      }
+
+      function purgeEntry (item) {
+        if (item === null || item === undefined) return
+        if (trashBusy !== '' || laneBusy) return
+        var name = strOf(item.name)
+        if (name === '') return
+        if (trashConfirm !== name) {
+          setTrashConfirm(name)
+          return
+        }
+        setTrashConfirm('')
+        setTrashBusy(name)
+        setNotice(null)
+        postJson(API_BASE + '/purge-trash', { name: name }).then(function () {
+          setNotice({ kind: 'ok', text: t('trash.purged', { name: strOf(item.displayName) || name }) })
+          return loadTrash()
+        }, function (err) {
+          failNotice('trash.purgeFailed', err)
+        }).then(function () { setTrashBusy('') })
       }
 
       function restoreEntry (item) {
@@ -4096,13 +4159,21 @@ window.__ModuleLoader__.load({
             el('div', { className: 'eh-trash-main' },
               el('span', { className: 'eh-trash-name' }, strOf(trashItem.displayName) || strOf(trashItem.id) || trashName),
               el('span', { className: 'eh-hint' }, t('trash.deletedAt', { time: deletedAt }))),
-            el('button', {
-              className: 'eh-btn eh-btn-sm', type: 'button',
-              disabled: trashBusy !== '',
-              onClick: (function (item) {
-                return function () { restoreEntry(item) }
-              })(trashItem)
-            }, trashBusy === trashName ? t('trash.restoring') : t('trash.restore'))))
+            el('div', { className: 'eh-trash-actions' },
+              el('button', {
+                className: 'eh-btn eh-btn-sm', type: 'button',
+                disabled: trashBusy !== '',
+                onClick: (function (item) {
+                  return function () { restoreEntry(item) }
+                })(trashItem)
+              }, trashBusy === trashName ? t('trash.restoring') : t('trash.restore')),
+              el('button', {
+                className: 'eh-btn eh-btn-sm', type: 'button', 'data-variant': 'danger',
+                disabled: trashBusy !== '',
+                onClick: (function (item) {
+                  return function () { purgeEntry(item) }
+                })(trashItem)
+              }, trashConfirm === trashName ? t('trash.confirmPurge') : t('trash.purge')))))
         }
         trashView = el('section', { className: 'eh-panel-card' },
           el('h3', { className: 'eh-card-title' }, t('trash.title') + '（' + trash.length + '）'),
