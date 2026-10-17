@@ -6,6 +6,9 @@
 > 这是 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（DSH）的社区插件，
 > 不是 DeepSeek 官方产品。
 
+[![npm](https://img.shields.io/npm/v/dsh-expert-hub)](https://www.npmjs.com/package/dsh-expert-hub)
+[![GitHub](https://img.shields.io/github/stars/Aliboder/dsh-expert-hub)](https://github.com/Aliboder/dsh-expert-hub)
+
 ## 它解决什么
 
 旧版 WorkBuddy 专家插件只能"只读扫描 → 逐个安装 → 再去输入框旁选择"，看不到专家详情、
@@ -13,13 +16,15 @@
 
 | 能力 | 说明 |
 |---|---|
-| **WorkBuddy 专家市场** | 读取本机 WorkBuddy 已落盘的专家（`.codebuddy-plugin/plugin.json` + `agents/*.md`），展示头像、职业、标签、分类、快捷提示词，一键导入/更新/全部导入 |
-| **自建专家** | 设置页表单直接写 `expert.yml` + `role.md` + 头像，立刻出现在专家库与会话选择器里 |
-| **AI 代为导入** | 把专家链接、网页内容或一段介绍直接发给 AI，由 AI 读取并整理成专家条目后写入专家库；不再需要用户自己填网址、找下载链接 |
-| **编辑与删除** | 已安装专家可改名称/职业/描述/标签/快捷提示词/角色正文/头像；删除有二次确认 |
-| **会话内切换** | 输入框旁的专家胶囊：头像 + 搜索 + 当前标记，选中即挂载"角色提示词 + 全部 skills"；「不用专家」随时退出 |
+| **WorkBuddy 专家市场** | 读取本机 WorkBuddy 已落盘的专家（`.codebuddy-plugin/plugin.json` + `agents/*.md`），展示头像、职业、分类、技能，一键导入/更新/全部导入 |
+| **AI 创建专家** | 用自然语言描述你要的专家，AI 先读《DSH 专家创作规范》，再生成 `role.md` 与必要的技能并写入专家库 |
+| **AI 代为导入** | 把专家链接、网页内容或一段介绍直接发给 AI，由 AI 读取并整理成专家条目后写入；不再需要填网址、找下载链接 |
+| **对话内管理** | 直接在会话里说“改一下某专家的提示词 / 加个技能 / 从目录导入技能 / 让我用某专家”，由 `expert_manage` 工具完成 |
+| **详情即编辑** | 卡片只有「详情」一个入口；打开后头像、名称、职业、`role.md`、技能在同一页面编辑，点「保存修改」生效 |
+| **技能管理** | 技能卡片式列表，可新增/编辑/删除，也可从本机技能目录一键导入 |
+| **删除与回收站** | 卡片可直接删除（软删除到回收站）；回收站可恢复或永久删除 |
+| **会话内切换** | 输入框旁的专家胶囊：头像 + 搜索 + 当前标记，选中即挂载“角色提示词 + 全部 skills”；「不用专家」随时退出 |
 | **选择可恢复** | 选择按会话持久化，DSH 重启或会话恢复后自动重新挂载 |
-| **富详情预览** | 安装前/后都能看 `role.md` 全文、每个 SKILL.md 正文、快捷提示词 |
 | **实时刷新** | 专家库或 WorkBuddy 来源变化时，打开的下拉/页面通过 SSE 自动更新 |
 
 ## 界面
@@ -32,21 +37,21 @@
 |---|---|
 | ![专家档案](docs/images/studio.png) | ![胶囊](docs/images/capsule.png) |
 
-| 新建与导入（AI 导入入口） |
-|---|
-| ![AI 导入](docs/images/ai-import.png) |
-
 
 ## 安装
 
-**桌面端（推荐）**：侧栏 **插件 → 添加插件**，输入本地目录
-`D:\SystemFiles\Documents\Project\DSH\plugins\dsh-expert-hub`（或发布后的 npm 包名
-`dsh-expert-hub`），安装后重启桌面 App。
+**桌面端（推荐）**：侧栏 **插件 → 添加插件**，输入 npm 包名 `dsh-expert-hub`，安装后重启桌面 App。
 
 **终端**：
 
 ```sh
-dsh plugin --profile web add <本插件目录或包名>
+dsh plugin --profile web add dsh-expert-hub
+```
+
+也可以从源码目录安装（开发调试）：
+
+```sh
+dsh plugin --profile web add D:\SystemFiles\Documents\Project\DSH\plugins\dsh-expert-hub
 ```
 
 安装后重启宿主（bundles 只在启动时读取），浏览器强刷。
