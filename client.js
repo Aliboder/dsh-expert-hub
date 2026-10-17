@@ -243,6 +243,10 @@ window.__ModuleLoader__.load({
 .eh-create-layout { display: grid; gap: 14px; align-items: start;
   grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); }
 .eh-create-side { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.eh-ai-import-wrap { width: 100%; max-width: 760px; margin: 0 auto; }
+.eh-ai-steps { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px;
+  font-size: 12.5px; line-height: 19px; color: var(--dsw-alias-label-secondary, inherit); }
+.eh-ai-steps li::marker { color: var(--dsw-alias-label-tertiary, inherit); }
 .eh-panel-card { box-sizing: border-box; display: flex; flex-direction: column; gap: 10px;
   padding: 14px; border-radius: 14px;
   background: var(--dsw-alias-bg-layer-1, transparent);
@@ -573,7 +577,7 @@ window.__ModuleLoader__.load({
 
         'tab.installed': '已安装',
         'tab.market': 'WorkBuddy 市场',
-        'tab.create': '新建与导入',
+        'tab.create': 'AI 添加',
 
         'search.placeholder': '搜索名称、职业或标签…',
         'search.label': '搜索专家',
@@ -658,12 +662,17 @@ window.__ModuleLoader__.load({
 
         'import.title': '导入专家',
         'import.subtitle': '本地文件夹、压缩包或 .md 可以直接导入；网页与在线内容交给 AI 整理更省事。',
-        'import.aiTitle': 'AI 帮我导入',
-        'import.aiBody': '不用再手动处理网址：把专家链接、网页内容或一段介绍直接发到对话里，并说「帮我导入这个专家」。AI 会读取、整理成专家条目后写入专家库；来源里有多位专家时会先问你选哪一位。',
-        'import.aiExample': '例如：帮我导入这个专家 https://example.com/expert，或者直接粘贴专家介绍。',
-        'import.aiCopy': '复制导入指令',
+        'import.aiTitle': '让 AI 帮我创建专家',
+        'import.aiBody': '不用填表：直接用自然语言描述你要的专家——名字、职业、语气、擅长什么、需要哪些能力或技能。AI 会先读取《DSH 专家创作规范》，再生成 role.md 与必要的技能并写入专家库。',
+        'import.aiStep1': '描述专家：名字、职业、服务对象、语气与边界。',
+        'import.aiStep2': '说明能力：典型任务、工作流程、输出格式、需要哪些技能。',
+        'import.aiStep3': 'AI 按规范生成 role.md 与 SKILL.md，并创建专家。',
+        'import.aiStep4': '确认后可直接在会话里启用，或继续让 AI 修改。',
+        'import.aiSpecHint': '规范会约束：身份/流程/输出格式/质量检查/边界；技能只在确有可复用流程时创建。',
+        'import.aiExample': '例如：创建一个「周报助手」，帮我把零散工作记录整理成结构化周报，语气简洁，输出 Markdown 表格，并给我一个“周报检查清单”技能。',
+        'import.aiCopy': '复制示例指令',
         'import.aiCopied': '已复制，发给 AI 即可',
-        'import.aiTemplate': '请帮我把这个专家整理并导入（链接或内容如下）：\n\n',
+        'import.aiTemplate': '请帮我创建一个专家：\n\n名字：\n职业：\n语气：\n擅长：\n需要的能力/技能：\n\n请先按 DSH 专家创作规范设计 role.md 和必要的技能，再创建；创建后告诉我如何启用。',
         'import.pathLabel': '高级：从本机路径导入',
         'import.pathPlaceholder': 'D:\\Experts\\my-expert 或 ~/Downloads/expert.zip',
         'import.pathButton': '从路径导入',
@@ -790,7 +799,7 @@ window.__ModuleLoader__.load({
 
         'tab.installed': 'Installed',
         'tab.market': 'WorkBuddy Market',
-        'tab.create': 'Create & Import',
+        'tab.create': 'AI Add',
 
         'search.placeholder': 'Search name, profession, or tag…',
         'search.label': 'Search experts',
@@ -875,12 +884,17 @@ window.__ModuleLoader__.load({
 
         'import.title': 'Import experts',
         'import.subtitle': 'Import a local folder, archive, or .md directly; let the AI organize web pages and online content.',
-        'import.aiTitle': 'Let the AI import it',
-        'import.aiBody': 'No URL form needed: paste the expert link, page content, or description into the conversation and say "import this expert". The AI reads it, organizes a complete expert entry, and writes it to the library; if the source contains several experts it asks which one first.',
-        'import.aiExample': 'e.g. "Import this expert: https://example.com/expert", or paste the expert description.',
-        'import.aiCopy': 'Copy import instruction',
+        'import.aiTitle': 'Let the AI create the expert',
+        'import.aiBody': 'No form needed: describe the expert in natural language — name, profession, tone, what it should be good at, and which capabilities or skills it needs. The AI reads the DSH expert authoring standard first, then generates role.md and any necessary skills and writes the expert.',
+        'import.aiStep1': 'Describe the expert: name, profession, audience, tone, and boundaries.',
+        'import.aiStep2': 'Describe capabilities: typical tasks, workflow, output format, and skills.',
+        'import.aiStep3': 'The AI generates role.md and SKILL.md files following the standard, then creates the expert.',
+        'import.aiStep4': 'Use it in the session, or keep refining it through the AI.',
+        'import.aiSpecHint': 'The standard covers identity, workflow, output format, quality checklist, and boundaries; skills are only created for genuinely reusable procedures.',
+        'import.aiExample': 'e.g. Create a “weekly report assistant” that turns scattered work notes into a structured weekly report, concise tone, Markdown tables, plus a “weekly checklist” skill.',
+        'import.aiCopy': 'Copy example prompt',
         'import.aiCopied': 'Copied — send it to the AI',
-        'import.aiTemplate': 'Please organize and import this expert (link or content below):\n\n',
+        'import.aiTemplate': 'Please create an expert for me:\n\nName:\nProfession:\nTone:\nWhat it should be good at:\nCapabilities / skills needed:\n\nFollow the DSH expert authoring standard to design role.md and any necessary skills first, then create it; tell me how to activate it afterwards.',
         'import.pathLabel': 'Advanced: import from local path',
         'import.pathPlaceholder': 'D:\\Experts\\my-expert or ~/Downloads/expert.zip',
         'import.pathButton': 'Import from path',
@@ -3555,6 +3569,12 @@ window.__ModuleLoader__.load({
       return el('div', { className: 'eh-panel-card eh-ai-import' },
         el('h3', { className: 'eh-card-title' }, t('import.aiTitle')),
         el('p', { className: 'eh-hint' }, t('import.aiBody')),
+        el('ol', { className: 'eh-ai-steps' },
+          el('li', null, t('import.aiStep1')),
+          el('li', null, t('import.aiStep2')),
+          el('li', null, t('import.aiStep3')),
+          el('li', null, t('import.aiStep4'))),
+        el('p', { className: 'eh-hint' }, t('import.aiSpecHint')),
         el('p', { className: 'eh-ai-example' }, t('import.aiExample')),
         el('div', { className: 'eh-form-actions' },
           el('button', {
@@ -4180,19 +4200,8 @@ window.__ModuleLoader__.load({
         'aria-labelledby': 'eh-tab-create',
         hidden: tab !== 'create' ? true : undefined
       },
-        el('div', { className: 'eh-create-layout' },
-          el(CreateForm, {
-            t: t,
-            laneBusy: laneBusy,
-            onCreate: createExpert
-          }),
-          el('div', { className: 'eh-create-side' },
-            el(AiImportCard, { t: t }),
-            el(ImportBox, {
-              t: t,
-              busyKey: busy,
-              onImport: importExternal
-            }))))
+        el('div', { className: 'eh-ai-import-wrap' },
+          el(AiImportCard, { t: t })))
 
       var tabItems = []
       for (var ti = 0; ti < TABS.length; ti++) {

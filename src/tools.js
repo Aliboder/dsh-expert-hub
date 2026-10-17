@@ -344,6 +344,49 @@ export function renderImportResult(args, value) {
   return `已导入专家「${name}」（id: ${value.expert?.id ?? ''}）${suffix}${warning}`
 }
 
+/** Shared authoring standard for chat-created experts. */
+export const EXPERT_AUTHORING_GUIDE = `# DSH 专家创作规范
+
+## 1. 先定边界
+- 这位专家只做什么、不做什么；遇到范围外的问题如何回退。
+- 明确输出语言、语气、详细程度；默认中文、直接、可执行。
+
+## 2. role.md 结构（建议 800–4000 字）
+# 身份
+一句话说明你是谁、服务谁、最擅长什么。
+## 工作流程
+按顺序列出处理请求的步骤；每步说明输入、判断和产出。
+## 输出格式
+给出固定结构（标题、表格、清单等），让结果可复用。
+## 质量检查
+列出交付前的自检项。
+## 边界
+不编造事实/工具/链接；不确定时先问或标注假设；不越权操作。
+
+## 3. 技能（skills）只在需要时创建
+- 适用：可复用的流程、清单、参考资料、模板，且 role.md 里反复引用。
+- 不适用：一句话就能说清的语气/身份设定，直接写进 role.md。
+- 每个技能一个目录 + SKILL.md：
+  ---
+  name: kebab-case-name
+  description: 一句话说明何时使用
+  ---
+  # 标题
+  ## 何时使用
+  ## 步骤 / 检查清单
+  ## 示例（可选）
+- 技能名用小写字母、数字、连字符；不要与 role.md 重复大段内容。
+
+## 4. 写入与交付
+- 新建：expert_manage({action:'create', expert:{displayName, profession, roleText, skills?}})；
+- 修改：先 get 读取现状，再只改用户要求的字段；不要无故重写全部技能；
+- 需要时加 activate:true 让当前会话立即生效；
+- 创建后向用户说明：专家名、用途、包含哪些技能、如何启用。`;
+
+/** Concise system prompt hint for expert authoring. */
+export const EXPERT_AUTHORING_PROMPT =
+  '当用户要求创建或大幅修改 DSH 专家时：先调用 expert_manage 的 action="guide" 读取《DSH 专家创作规范》，再按规范生成 role.md（身份/流程/输出格式/质量检查/边界）与确有必要的技能，最后用 expert_manage 的 create/update 写入；未要求时不要展示工具参数细节。'
+
 /** Error for expert_manage actions. */
 export class ManageToolError extends Error {
   constructor(code, message, hints) {
@@ -404,6 +447,19 @@ async function activateExpert(id, deps) {
 export async function runExpertManage(args, deps) {
   const input = args !== null && typeof args === 'object' ? args : {}
   const action = textOf(input.action)
+  if (action === 'guide') {
+    return {
+      ok: true,
+      action,
+      guide: EXPERT_AUTHORING_GUIDE,
+      checklist: [
+        'role.md 是否包含身份、工作流程、输出格式、质量检查、边界？',
+        '技能是否真的可复用，而不是把 role.md 内容拆碎？',
+        '技能名是否 kebab-case，SKILL.md 是否有 name/description frontmatter？',
+        '是否写入后向用户说明如何启用？',
+      ],
+    }
+  }
   if (action === 'list') {
     const state = await installedState(deps.paths)
     return {
@@ -511,7 +567,7 @@ export async function runExpertManage(args, deps) {
   throw new ManageToolError(
     'ACTION_INVALID',
     `未知 action：${JSON.stringify(input.action)}`,
-    ['可用 action：list、get、create、update、add_skill、remove_skill、import_skill、use。'],
+    ['可用 action：guide、list、get、create、update、add_skill、remove_skill、import_skill、use。'],
   )
 }
 
@@ -523,6 +579,8 @@ export function renderManageResult(args, value) {
   switch (value.action) {
     case 'list':
       return `已安装 ${value.experts?.length ?? 0} 位专家：${(value.experts ?? []).map((item) => `${item.displayName}（${item.id}）`).join('、')}`
+    case 'guide':
+      return '已返回《DSH 专家创作规范》。'
     case 'get':
       return `已读取专家「${name}」：${value.roleChars ?? 0} 字角色，${value.skills?.length ?? 0} 个技能。`
     case 'create':
@@ -548,14 +606,14 @@ export function expertManageToolDefinition({ paths, switcher, logger }) {
   return {
     name: 'expert_manage',
     description:
-      '查看和修改 DSH 专家库：列出专家、读取某位专家的角色提示词与技能、创建专家、修改显示名/职业/角色提示词/技能、单独添加或删除技能、从本机目录导入技能、或在当前会话启用专家。用户说“改一下某专家的提示词/加个技能/删掉这个技能/新建专家/让我用某专家”时使用。网页来源的整专家导入请用 expert_import；删除专家请让用户在设置页操作。修改当前正在使用的专家后传 activate=true 可立即刷新。',
+      '查看和修改 DSH 专家库：列出专家、读取某位专家的角色提示词与技能、创建专家、修改显示名/职业/角色提示词/技能、单独添加或删除技能、从本机目录导入技能、或在当前会话启用专家。用户说“改一下某专家的提示词/加个技能/删掉这个技能/新建专家/让我用某专家”时使用；新建或大改专家前先调用 action="guide" 读取《专家创作规范》，按规范生成 role.md 与 skill。网页来源的整专家导入请用 expert_import；删除专家请让用户在设置页操作。修改当前正在使用的专家后传 activate=true 可立即刷新。',
     parameters: {
       type: 'object',
       properties: {
         action: {
           type: 'string',
-          enum: ['list', 'get', 'create', 'update', 'add_skill', 'remove_skill', 'import_skill', 'use'],
-          description: 'list=列出已安装专家；get=读取详情；create=新建；update=改资料/角色/技能树；add_skill/remove_skill=单个技能；import_skill=从本机路径导入；use=在当前会话启用。',
+          enum: ['guide', 'list', 'get', 'create', 'update', 'add_skill', 'remove_skill', 'import_skill', 'use'],
+          description: 'guide=读取专家创作规范（新建/大改前先调用）；list=列出已安装专家；get=读取详情；create=新建；update=改资料/角色/技能树；add_skill/remove_skill=单个技能；import_skill=从本机路径导入；use=在当前会话启用。',
         },
         id: { type: 'string', description: '专家 id（list/get/update/add_skill/remove_skill/import_skill/use 必填）。' },
         expert: {

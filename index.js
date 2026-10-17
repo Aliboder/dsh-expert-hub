@@ -20,7 +20,7 @@ import { createPaths } from './src/paths.js'
 import { createRoutes } from './src/routes.js'
 import { openSelections } from './src/selections.js'
 import { createSwitcher } from './src/switch.js'
-import { registerExpertTools } from './src/tools.js'
+import { EXPERT_AUTHORING_PROMPT, registerExpertTools } from './src/tools.js'
 import { DEFAULT_SOURCE_PATH } from './src/workbuddy.js'
 
 /** Cordis plugin name. */
@@ -173,6 +173,21 @@ export async function apply(ctx, config = {}) {
     ctx.effect(
       () => registerExpertTools(toolsCtx, { paths, switcher, logger: { warn } }),
       'dsh-expert-hub:tools',
+    )
+  })
+
+  // Authoring guidance for chat-created experts. Guarded because the prompt
+  // service is session-scoped in some hosts; when absent the tool description
+  // and action="guide" still carry the same standard.
+  ctx.inject(['systemPrompt'], (promptCtx) => {
+    if (promptCtx.systemPrompt === undefined || typeof promptCtx.systemPrompt.section !== 'function') return
+    ctx.effect(
+      () => promptCtx.systemPrompt.section({
+        name: 'expert-authoring',
+        order: 140,
+        text: EXPERT_AUTHORING_PROMPT,
+      }),
+      'dsh-expert-hub:authoring-prompt',
     )
   })
 

@@ -26,6 +26,11 @@ const deps = {
 }
 
 try {
+  const guide = await runExpertManage({ action: 'guide' }, deps)
+  assert.equal(guide.ok, true)
+  assert.match(guide.guide, /DSH 专家创作规范/)
+  assert.equal(guide.checklist.length > 0, true)
+
   const created = await runExpertManage({
     action: 'create',
     expert: {

@@ -263,6 +263,7 @@ type ExpertImportArgs = {
 
 | action | 入参 | 行为 |
 |---|---|---|
+| `guide` | — | 返回《DSH 专家创作规范》（role.md 结构、技能规范、写入流程、检查清单） |
 | `list` | — | 列出已安装专家（id/显示名/职业/技能数/角色字数/来源） |
 | `get` | `id` | 读取一位专家的角色提示词与技能正文（单段截断到 60k 字） |
 | `create` | `expert:{displayName, roleText, profession?, id?, skills?}` | 新建专家，可选 `activate` |
