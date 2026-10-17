@@ -304,7 +304,7 @@ window.__ModuleLoader__.load({
   border-left: 1px solid var(--dsw-alias-border-l1, rgba(127,127,127,.28));
   box-shadow: var(--dsw-shadow-lv3, -12px 0 40px rgba(0,0,0,.22));
   animation: eh-slide-in .18s ease-out; }
-.eh-dialog { display: flex; flex-direction: column; margin: auto; width: min(640px, calc(100vw - 32px));
+.eh-dialog { display: flex; flex-direction: column; margin: auto; width: min(820px, calc(100vw - 32px));
   max-height: calc(100vh - 56px); min-width: 0; outline: none; border-radius: 16px; overflow: hidden;
   background: var(--dsw-alias-bg-layer-2, #1c1c1e);
   border: 1px solid var(--dsw-alias-border-l1, rgba(127,127,127,.28));
@@ -320,6 +320,25 @@ window.__ModuleLoader__.load({
   display: flex; flex-direction: column; gap: 12px; }
 .eh-dialog-foot { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap;
   padding: 11px 16px; border-top: 1px solid var(--dsw-alias-border-l1, rgba(127,127,127,.2)); }
+
+/* ── 统一专家档案 ─────────────────────────────────────────────────────── */
+.eh-studio-head { display: flex; align-items: flex-start; gap: 14px; padding: 2px 2px 14px;
+  border-bottom: 1px solid var(--dsw-alias-border-l1, rgba(127,127,127,.2)); }
+.eh-studio-avatar { width: 64px; height: 64px; flex: none; border-radius: 16px; overflow: hidden;
+  display: inline-flex; align-items: center; justify-content: center; font-size: 26px; line-height: 1;
+  background: var(--dsw-alias-bg-layer-2, rgba(127,127,127,.16));
+  color: var(--dsw-alias-label-secondary, inherit);
+  box-shadow: inset 0 0 0 1px var(--dsw-alias-border-l1, rgba(127,127,127,.22)); }
+.eh-studio-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.eh-studio-id { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.eh-studio-name-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.eh-studio-name { margin: 0; font-size: 19px; line-height: 25px; font-weight: 600;
+  color: var(--dsw-alias-label-primary, inherit); overflow-wrap: anywhere; }
+.eh-studio-sub { margin: 0; font-size: 12px; line-height: 18px;
+  color: var(--dsw-alias-label-secondary, inherit); }
+.eh-studio-badges, .eh-studio-tags { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.eh-studio-avatar-btn { flex: none; cursor: pointer; align-self: center; }
+.eh-studio-body { display: flex; flex-direction: column; gap: 14px; }
 
 /* ── 详情 ─────────────────────────────────────────────────────────────── */
 .eh-detail-top { display: flex; align-items: center; gap: 12px; min-width: 0; }
@@ -643,6 +662,19 @@ window.__ModuleLoader__.load({
         'edit.skillImporting': '导入中…',
         'edit.skillImported': '技能已导入',
         'edit.skillImportFailed': '导入技能失败：{message}',
+        'studio.editHint': '修改后点「保存修改」生效；技能同样可以增删或从目录导入。',
+        'studio.previewHint': '这是 WorkBuddy 市场里的专家；导入到专家库后即可编辑和使用。',
+        'studio.save': '保存修改',
+        'studio.saving': '保存中…',
+        'studio.saved': '已保存',
+        'studio.use': '在会话中使用',
+        'studio.import': '导入到专家库',
+        'studio.changeAvatar': '换头像',
+        'studio.skillsCount': '{n} 个技能',
+        'studio.roleChars': '{n} 字角色',
+        'studio.source': '来源：{label}',
+        'studio.category': '分类：{label}',
+        'studio.readonly': '只读预览',
         'trash.title': '回收站',
         'trash.hint': '删除的专家会先移到这里，可随时恢复。',
         'trash.restore': '恢复',
@@ -839,6 +871,19 @@ window.__ModuleLoader__.load({
         'edit.skillImporting': 'Importing…',
         'edit.skillImported': 'Skill imported',
         'edit.skillImportFailed': 'Skill import failed: {message}',
+        'studio.editHint': 'Edits apply when you press “Save changes”; skills can be added, removed, or imported from a folder.',
+        'studio.previewHint': 'This expert lives in the WorkBuddy marketplace; import it into the expert library to edit and use it.',
+        'studio.save': 'Save changes',
+        'studio.saving': 'Saving…',
+        'studio.saved': 'Saved',
+        'studio.use': 'Use in this session',
+        'studio.import': 'Import to library',
+        'studio.changeAvatar': 'Change avatar',
+        'studio.skillsCount': '{n} skills',
+        'studio.roleChars': '{n} chars',
+        'studio.source': 'Source: {label}',
+        'studio.category': 'Category: {label}',
+        'studio.readonly': 'Read-only preview',
         'trash.title': 'Trash',
         'trash.hint': 'Deleted experts are moved here first and can be restored.',
         'trash.restore': 'Restore',
@@ -2257,6 +2302,7 @@ window.__ModuleLoader__.load({
       var paths = arrOf(props.paths)
       var skillPath = strOf(props.skillPath)
       var skillNotice = strOf(props.skillNotice)
+      var readOnly = props.readOnly === true
 
       var nodes = []
       for (var i = 0; i < skills.length; i++) {
@@ -2266,13 +2312,14 @@ window.__ModuleLoader__.load({
             el('input', {
               className: 'eh-input',
               type: 'text',
+              readOnly: readOnly,
               value: row.name !== undefined ? row.name : '',
               placeholder: t('edit.skillNamePlaceholder'),
               onChange: (function (at) {
-                return function (event) { props.onChangeSkill(at, 'name', event.target.value) }
+                return function (event) { if (!readOnly) props.onChangeSkill(at, 'name', event.target.value) }
               })(i)
             }),
-            el('button', {
+            readOnly ? null : el('button', {
               className: 'eh-btn eh-btn-sm', type: 'button', 'data-variant': 'danger',
               onClick: (function (at) {
                 return function () { props.onRemoveSkill(at) }
@@ -2281,10 +2328,11 @@ window.__ModuleLoader__.load({
           el('textarea', {
             className: 'eh-textarea',
             rows: 4,
+            readOnly: readOnly,
             value: row.content !== undefined ? row.content : '',
             placeholder: t('edit.skillContentPlaceholder'),
             onChange: (function (at) {
-              return function (event) { props.onChangeSkill(at, 'content', event.target.value) }
+              return function (event) { if (!readOnly) props.onChangeSkill(at, 'content', event.target.value) }
             })(i)
           })))
       }
@@ -2306,9 +2354,9 @@ window.__ModuleLoader__.load({
         el('p', { className: 'eh-hint' }, t(props.paths !== undefined ? 'create.skillsHint' : 'edit.skillsHint')),
         skills.length === 0 ? el('p', { className: 'eh-hint' }, t('edit.skillsEmpty')) : null,
         nodes.length > 0 ? el('div', { className: 'eh-skill-list' }, nodes) : null,
-        el('div', { className: 'eh-form-actions' },
+        readOnly ? null : el('div', { className: 'eh-form-actions' },
           el('button', { className: 'eh-btn eh-btn-sm', type: 'button', onClick: props.onAddSkill }, t('edit.addSkill'))),
-        el('div', { className: 'eh-field' },
+        readOnly ? null : el('div', { className: 'eh-field' },
           el('label', { className: 'eh-label' }, t('edit.skillImport')),
           el('input', {
             className: 'eh-input',
@@ -2317,7 +2365,7 @@ window.__ModuleLoader__.load({
             placeholder: t('edit.skillPathPlaceholder'),
             onChange: function (event) { props.onPathChange(event.target.value) }
           })),
-        el('div', { className: 'eh-form-actions' },
+        readOnly ? null : el('div', { className: 'eh-form-actions' },
           el('button', {
             className: 'eh-btn', type: 'button',
             disabled: props.skillBusy === true,
@@ -2325,12 +2373,318 @@ window.__ModuleLoader__.load({
           },
             props.skillBusy === true ? el('span', { className: 'eh-spin', 'aria-hidden': 'true' }) : null,
             props.skillBusy === true ? t('edit.skillImporting') : t(props.paths !== undefined ? 'create.addSkillPath' : 'edit.skillImport'))),
-        pathNodes.length > 0
+        readOnly ? null : (pathNodes.length > 0
           ? el('div', { className: 'eh-field' },
               el('span', { className: 'eh-label' }, t('create.pendingSkillPaths')),
               el('ul', { className: 'eh-trash-list' }, pathNodes))
-          : null,
+          : null),
         skillNotice !== '' ? el('p', { className: 'eh-hint' }, skillNotice) : null)
+    }
+
+    /**
+     * 统一的专家档案：详情与编辑合并成一个页面。
+     * - installed：字段可直接编辑，底部「保存修改」；
+     * - WorkBuddy 市场：只读预览，底部直接「导入到专家库」。
+     */
+    function ExpertStudioDialog (props) {
+      var t = props.t
+      var card = props.card !== null && props.card !== undefined ? props.card : {}
+      var scope = props.scope === 'workbuddy' ? 'workbuddy' : 'installed'
+      var cardId = strOf(card.id)
+
+      var phaseState = React.useState('loading')
+      var phase = phaseState[0]
+      var setPhase = phaseState[1]
+      var errorState = React.useState('')
+      var error = errorState[0]
+      var setError = errorState[1]
+      var detailState = React.useState(card)
+      var detailCard = detailState[0]
+      var setDetailCard = detailState[1]
+      var valuesState = React.useState(null)
+      var values = valuesState[0]
+      var setValues = valuesState[1]
+      var skillsState = React.useState([])
+      var skills = skillsState[0]
+      var setSkills = skillsState[1]
+      var skillPathState = React.useState('')
+      var skillPath = skillPathState[0]
+      var setSkillPath = skillPathState[1]
+      var skillBusyState = React.useState(false)
+      var skillBusy = skillBusyState[0]
+      var setSkillBusy = skillBusyState[1]
+      var skillNoticeState = React.useState('')
+      var skillNotice = skillNoticeState[0]
+      var setSkillNotice = skillNoticeState[1]
+      var avatarState = React.useState('')
+      var avatarDataUrl = avatarState[0]
+      var setAvatarDataUrl = avatarState[1]
+      var avatarErrorState = React.useState('')
+      var avatarError = avatarErrorState[0]
+      var setAvatarError = avatarErrorState[1]
+      var formErrorState = React.useState('')
+      var formError = formErrorState[0]
+      var setFormError = formErrorState[1]
+      var savingState = React.useState(false)
+      var saving = savingState[0]
+      var setSaving = savingState[1]
+      var noticeState = React.useState('')
+      var notice = noticeState[0]
+      var setNotice = noticeState[1]
+
+      function load () {
+        if (cardId === '') {
+          setError('缺少专家 id')
+          setPhase('error')
+          return Promise.resolve(null)
+        }
+        setPhase('loading')
+        setError('')
+        return api(detailUrl(cardId, scope)).then(function (payload) {
+          var actual = payload !== null && payload.card !== null && typeof payload.card === 'object' ? payload.card : card
+          setDetailCard(actual)
+          setValues({
+            displayName: nameOf(actual),
+            id: strOf(actual.id),
+            profession: strOf(actual.profession),
+            description: strOf(actual.description),
+            tags: listOfStrings(actual.tags).join(', '),
+            quickPrompts: listOfStrings(actual.quickPrompts).join('\n'),
+            roleText: payload !== null && typeof payload.roleText === 'string' ? payload.roleText : ''
+          })
+          var rows = []
+          var raw = payload !== null && Array.isArray(payload.skills) ? payload.skills : []
+          for (var i = 0; i < raw.length; i++) {
+            rows.push({
+              name: strOf(raw[i] && raw[i].name),
+              content: raw[i] !== null && typeof raw[i].content === 'string' ? raw[i].content : ''
+            })
+          }
+          setSkills(rows)
+          setPhase('ready')
+          return payload
+        }, function (err) {
+          setError(errorOf(err))
+          setPhase('error')
+          return null
+        })
+      }
+
+      React.useEffect(function () { load() }, [cardId, scope])
+
+      function onChange (field, value) {
+        setValues(function (previous) {
+          if (previous === null) return previous
+          var next = Object.assign({}, previous)
+          next[field] = value
+          return next
+        })
+        if (formError !== '') setFormError('')
+      }
+
+      function onAvatarFile (event) {
+        var input = event !== null && event !== undefined ? event.target : null
+        var file = input !== null && input !== undefined && input.files ? input.files[0] : null
+        readAvatarFile(file, t, function (dataUrl, message) {
+          if (message !== '') setAvatarError(message)
+          else {
+            setAvatarError('')
+            setAvatarDataUrl(dataUrl)
+          }
+          if (input !== null && input !== undefined) input.value = ''
+        })
+      }
+
+      function changeSkill (index, field, value) {
+        setSkills(function (previous) {
+          var next = previous.slice()
+          next[index] = Object.assign({}, next[index], { [field]: value })
+          return next
+        })
+      }
+
+      function addSkill () {
+        setSkills(function (previous) { return previous.concat([{ name: '', content: '' }]) })
+      }
+
+      function removeSkill (index) {
+        setSkills(function (previous) {
+          return previous.filter(function (_row, at) { return at !== index })
+        })
+      }
+
+      function importSkill () {
+        if (skillBusy || saving || readOnly) return
+        var path = strOf(skillPath)
+        setSkillNotice('')
+        if (path === '') {
+          setSkillNotice(t('edit.skillImportFailed', { message: t('import.emptyPath') }))
+          return
+        }
+        setSkillBusy(true)
+        postJson(API_BASE + '/skill-import', { id: cardId, path: path }).then(function () {
+          return api(detailUrl(cardId, 'installed')).then(function (payload) {
+            var rows = []
+            var raw = payload !== null && Array.isArray(payload.skills) ? payload.skills : []
+            for (var i = 0; i < raw.length; i++) {
+              rows.push({
+                name: strOf(raw[i] && raw[i].name),
+                content: raw[i] !== null && typeof raw[i].content === 'string' ? raw[i].content : ''
+              })
+            }
+            setSkills(rows)
+            if (payload !== null && payload.card !== null && typeof payload.card === 'object') setDetailCard(payload.card)
+            setSkillNotice(t('edit.skillImported'))
+            setSkillPath('')
+            return payload
+          })
+        }, function (err) {
+          setSkillNotice(t('edit.skillImportFailed', { message: errorOf(err) }))
+          return null
+        }).then(function () { setSkillBusy(false) })
+      }
+
+      function submit () {
+        if (saving || values === null || readOnly) return
+        setFormError('')
+        setNotice('')
+        var displayName = strOf(values.displayName)
+        var description = strOf(values.description)
+        if (displayName === '') { setFormError(t('create.requiredName')); return }
+        if (description === '') { setFormError(t('create.requiredDescription')); return }
+        if (strOf(values.roleText) === '') { setFormError(t('create.requiredRole')); return }
+        var skillRows = []
+        for (var i = 0; i < skills.length; i++) {
+          var row = skills[i] !== null && typeof skills[i] === 'object' ? skills[i] : {}
+          var name = strOf(row.name)
+          var content = typeof row.content === 'string' ? row.content : ''
+          if (name === '' && strOf(content) === '') continue
+          if (name === '' || strOf(content) === '') { setFormError(t('edit.skillInvalid')); return }
+          skillRows.push({ name: name, content: content })
+        }
+        var payload = {
+          displayName: displayName,
+          profession: strOf(values.profession),
+          description: description,
+          tags: parseTags(values.tags),
+          quickPrompts: parseLines(values.quickPrompts, 6),
+          roleText: values.roleText,
+          skills: skillRows
+        }
+        if (avatarDataUrl !== '') payload.avatarDataUrl = avatarDataUrl
+        setSaving(true)
+        props.onSave(detailCard, payload).then(function (accepted) {
+          setSaving(false)
+          if (accepted === true) {
+            setAvatarDataUrl('')
+            setNotice(t('studio.saved'))
+            load()
+          }
+        }, function () { setSaving(false) })
+      }
+
+      if (phase === 'loading') {
+        return el(Overlay, { t: t, title: t('detail.title'), onClose: props.onClose },
+          el('p', { className: 'eh-hint' }, t('detail.loading')))
+      }
+      if (phase === 'error') {
+        return el(Overlay, { t: t, title: t('detail.title'), onClose: props.onClose },
+          el('div', { className: 'eh-notice', 'data-kind': 'error', role: 'alert' },
+            t('edit.loadFailed') + '：' + error + ' ',
+            el('button', { className: 'eh-btn eh-btn-sm', type: 'button', onClick: load }, t('page.retry'))))
+      }
+
+      var readOnly = scope === 'workbuddy' && detailCard.installed !== true
+      var tags = listOfStrings(detailCard.tags)
+      var sourceLabel = strOf(detailCard.sourceLabel)
+      var categoryLabel = strOf(detailCard.categoryLabel)
+      var avatarSrc = avatarDataUrl !== '' ? avatarDataUrl : strOf(detailCard.avatarUrl)
+      var roleChars = values !== null && typeof values.roleText === 'string' ? values.roleText.length : 0
+      var badgeNodes = []
+      if (sourceLabel !== '') badgeNodes.push(el('span', { className: 'eh-badge', key: 'src' }, t('studio.source', { label: sourceLabel })))
+      if (categoryLabel !== '') badgeNodes.push(el('span', { className: 'eh-badge', key: 'cat' }, t('studio.category', { label: categoryLabel })))
+      badgeNodes.push(el('span', { className: 'eh-badge', key: 'skills' }, t('studio.skillsCount', { n: skills.length })))
+      badgeNodes.push(el('span', { className: 'eh-badge', key: 'chars' }, t('studio.roleChars', { n: roleChars })))
+      var tagNodes = []
+      for (var ti = 0; ti < tags.length; ti++) tagNodes.push(el('span', { className: 'eh-tag', key: 'tag:' + ti }, tags[ti]))
+
+      var header = el('div', { className: 'eh-studio-head' },
+        el('div', { className: 'eh-studio-avatar' },
+          avatarSrc !== ''
+            ? el('img', { src: avatarSrc, alt: '' })
+            : el('span', { 'aria-hidden': 'true' }, firstGlyph(nameOf(detailCard)))),
+        el('div', { className: 'eh-studio-id' },
+          el('div', { className: 'eh-studio-name-row' },
+            el('h3', { className: 'eh-studio-name' }, nameOf(detailCard)),
+            readOnly ? el('span', { className: 'eh-badge', 'data-kind': 'warn' }, t('studio.readonly')) : null),
+          el('p', { className: 'eh-studio-sub' }, professionOf(detailCard) || strOf(detailCard.id)),
+          el('div', { className: 'eh-studio-badges' }, badgeNodes),
+          tagNodes.length > 0 ? el('div', { className: 'eh-studio-tags' }, tagNodes) : null),
+        readOnly
+          ? null
+          : el('label', { className: 'eh-btn eh-btn-sm eh-studio-avatar-btn' },
+              t('studio.changeAvatar'),
+              el('input', {
+                type: 'file',
+                accept: 'image/png,image/jpeg,image/webp',
+                style: { display: 'none' },
+                onChange: onAvatarFile
+              })))
+
+      var body = el('div', { className: 'eh-studio-body' },
+        el('p', { className: 'eh-hint' }, t(readOnly ? 'studio.previewHint' : 'studio.editHint')),
+        notice !== '' ? el('div', { className: 'eh-notice', 'data-kind': 'ok', role: 'status' }, notice) : null,
+        el(ExpertFormFields, {
+          t: t,
+          idPrefix: 'eh-studio',
+          values: values,
+          showAvatar: false,
+          readOnly: readOnly,
+          onChange: onChange,
+          roleHint: t('create.roleHint'),
+          avatarError: avatarError
+        }),
+        el(SkillsEditor, {
+          t: t,
+          skills: skills,
+          skillPath: skillPath,
+          skillBusy: skillBusy,
+          skillNotice: skillNotice,
+          readOnly: readOnly,
+          onChangeSkill: changeSkill,
+          onAddSkill: addSkill,
+          onRemoveSkill: removeSkill,
+          onPathChange: setSkillPath,
+          onImport: importSkill
+        }),
+        formError !== '' ? el('p', { className: 'eh-form-error', role: 'alert' }, formError) : null,
+        avatarError !== '' ? el('p', { className: 'eh-form-error', role: 'alert' }, avatarError) : null)
+
+      var footer = [el('button', {
+        key: 'close', className: 'eh-btn', type: 'button',
+        onClick: props.onClose
+      }, t('page.close'))]
+      if (readOnly) {
+        footer.push(el('button', {
+          key: 'import', className: 'eh-btn', type: 'button', 'data-variant': 'primary',
+          disabled: props.laneBusy === true || isBroken(detailCard),
+          onClick: function () { props.onImport(detailCard) }
+        }, t('studio.import')))
+      } else {
+        footer.push(el('button', {
+          key: 'use', className: 'eh-btn', type: 'button',
+          disabled: props.laneBusy === true || strOf(props.sessionId) === '',
+          title: strOf(props.sessionId) === '' ? t('detail.noSession') : undefined,
+          onClick: function () { props.onUse(detailCard) }
+        }, t('studio.use')))
+        footer.push(el('button', {
+          key: 'save', className: 'eh-btn', type: 'button', 'data-variant': 'primary',
+          disabled: saving || props.laneBusy === true,
+          onClick: submit
+        }, saving ? t('studio.saving') : t('studio.save')))
+      }
+
+      return el(Overlay, { t: t, title: t('detail.title'), onClose: props.onClose, footer: footer }, header, body)
     }
 
     function CreateForm (props) {
@@ -2548,6 +2902,7 @@ window.__ModuleLoader__.load({
       var values = props.values !== null && props.values !== undefined ? props.values : emptyFormValues()
       var prefix = props.idPrefix || 'eh-form'
       var avatarUrl = props.avatarUrl !== undefined && props.avatarUrl !== null ? props.avatarUrl : ''
+      var readOnly = props.readOnly === true
 
       function textField (key, label, placeholder, hint) {
         return el('div', { className: 'eh-field', key: key },
@@ -2556,9 +2911,11 @@ window.__ModuleLoader__.load({
             id: prefix + '-' + key,
             className: 'eh-input',
             type: 'text',
+            readOnly: readOnly,
             value: values[key] !== undefined && values[key] !== null ? values[key] : '',
             placeholder: placeholder,
             onChange: function (event) {
+              if (readOnly) return
               if (key === 'id' && typeof props.onIdChange === 'function') props.onIdChange(event.target.value)
               else props.onChange(key, event.target.value)
             }
@@ -2573,12 +2930,43 @@ window.__ModuleLoader__.load({
             id: prefix + '-' + key,
             className: 'eh-textarea' + (extraClass !== undefined ? ' ' + extraClass : ''),
             rows: rows,
+            readOnly: readOnly,
             value: values[key] !== undefined && values[key] !== null ? values[key] : '',
             placeholder: placeholder,
-            onChange: function (event) { props.onChange(key, event.target.value) }
+            onChange: function (event) { if (!readOnly) props.onChange(key, event.target.value) }
           }),
           hint !== '' ? el('p', { className: 'eh-hint' }, hint) : null)
       }
+
+      var avatarField = props.showAvatar === false
+        ? null
+        : el('div', { className: 'eh-field' },
+            el('span', { className: 'eh-label' }, t('create.avatar')),
+            el('div', { className: 'eh-avatar-row' },
+              avatarUrl !== ''
+                ? el('img', { className: 'eh-avatar-preview', src: avatarUrl, alt: '' })
+                : el('span', { className: 'eh-avatar-preview', 'aria-hidden': 'true' }, firstGlyph(values.displayName)),
+              readOnly
+                ? null
+                : el('div', { className: 'eh-avatar-actions' },
+                    el('input', {
+                      className: 'eh-file',
+                      type: 'file',
+                      accept: 'image/png,image/jpeg,image/webp',
+                      'aria-label': t('create.avatarPick'),
+                      onChange: props.onAvatarFile
+                    }),
+                    props.onAvatarClear !== undefined && avatarUrl !== ''
+                      ? el('button', {
+                          className: 'eh-btn eh-btn-sm', type: 'button',
+                          onClick: props.onAvatarClear
+                        }, t('create.avatarClear'))
+                      : null)),
+            el('p', { className: 'eh-hint' },
+              props.avatarHint !== undefined ? props.avatarHint : t('create.avatarHint')),
+            props.avatarError !== undefined && props.avatarError !== ''
+              ? el('p', { className: 'eh-form-error' }, props.avatarError)
+              : null)
 
       return el('div', { className: 'eh-form' },
         el('div', { className: 'eh-form-row' },
@@ -2594,31 +2982,7 @@ window.__ModuleLoader__.load({
             t('create.quickPromptsHint'), 2)),
         areaField('roleText', t('create.role'), t('create.rolePlaceholder'),
           props.roleHint !== undefined ? props.roleHint : t('create.roleHint'), 8, 'eh-role-input'),
-        el('div', { className: 'eh-field' },
-          el('span', { className: 'eh-label' }, t('create.avatar')),
-          el('div', { className: 'eh-avatar-row' },
-            avatarUrl !== ''
-              ? el('img', { className: 'eh-avatar-preview', src: avatarUrl, alt: '' })
-              : el('span', { className: 'eh-avatar-preview', 'aria-hidden': 'true' }, firstGlyph(values.displayName)),
-            el('div', { className: 'eh-avatar-actions' },
-              el('input', {
-                className: 'eh-file',
-                type: 'file',
-                accept: 'image/png,image/jpeg,image/webp',
-                'aria-label': t('create.avatarPick'),
-                onChange: props.onAvatarFile
-              }),
-              props.onAvatarClear !== undefined && avatarUrl !== ''
-                ? el('button', {
-                    className: 'eh-btn eh-btn-sm', type: 'button',
-                    onClick: props.onAvatarClear
-                  }, t('create.avatarClear'))
-                : null)),
-          el('p', { className: 'eh-hint' },
-            props.avatarHint !== undefined ? props.avatarHint : t('create.avatarHint')),
-          props.avatarError !== undefined && props.avatarError !== ''
-            ? el('p', { className: 'eh-form-error' }, props.avatarError)
-            : null))
+        avatarField)
     }
 
     // ── AI 导入提示卡（网页/在线内容交给 AI）────────────────────────────
@@ -3105,8 +3469,7 @@ window.__ModuleLoader__.load({
           return
         }
         if (action === 'edit') {
-          setDetail(null)
-          setEdit({ card: card })
+          setDetail({ scope: 'installed', card: card })
           return
         }
         if (action === 'delete') {
@@ -3371,7 +3734,7 @@ window.__ModuleLoader__.load({
           : null,
         panel,
         detail !== null
-          ? el(DetailDrawer, {
+          ? el(ExpertStudioDialog, {
               t: t,
               card: detail.card,
               scope: detail.scope,
@@ -3379,20 +3742,11 @@ window.__ModuleLoader__.load({
               laneBusy: laneBusy,
               onClose: function () { setDetail(null) },
               onUse: useInSession,
-              onEdit: function (card) { setDetail(null); setEdit({ card: card }) },
+              onSave: saveEdit,
               onImport: function (card) {
                 setDetail(null)
                 importOne(card, card.updatable === true)
               }
-            })
-          : null,
-        edit !== null
-          ? el(EditDialog, {
-              t: t,
-              card: edit.card,
-              laneBusy: laneBusy,
-              onClose: function () { setEdit(null) },
-              onSave: saveEdit
             })
           : null)
     }

@@ -28,9 +28,9 @@
 |---|---|
 | ![已安装](docs/images/settings-installed.png) | ![市场](docs/images/market.png) |
 
-| 专家详情（角色提示词 / 技能 / 快捷提示词） | 会话输入框旁的专家胶囊 |
+| 专家档案（详情 + 编辑合并） | 会话输入框旁的专家胶囊 |
 |---|---|
-| ![详情](docs/images/detail.png) | ![胶囊](docs/images/capsule.png) |
+| ![专家档案](docs/images/studio.png) | ![胶囊](docs/images/capsule.png) |
 
 | 新建与导入（AI 导入入口） |
 |---|
@@ -56,8 +56,8 @@ dsh plugin --profile web add <本插件目录或包名>
 ### 专家中心（设置 → 专家中心）
 
 - **已安装**：专家卡片墙，支持搜索、分类筛选、排序；卡片操作：详情 / 编辑 / 删除 / 更新。
-  编辑里可以改元数据、`role.md`、头像，也能**增删改技能**（每个技能写 `SKILL.md`）或**从目录导入技能**；
-  删除是软删除，页面底部「回收站」可以一键恢复。
+  详情与编辑已合并成同一个「专家档案」页：头像、名称、职业、标签、快捷提示词、`role.md` 和技能都在
+  一个页面里直接改，保存一次生效；技能可增删改或**从目录导入**，删除是软删除，页面底部「回收站」可一键恢复。
 - **WorkBuddy 市场**：本机 WorkBuddy 里已"召唤"的专家。首次使用需在 WorkBuddy 专家中心
   点击「召唤」，专家落盘到 `~/.workbuddy/plugins/marketplaces/experts/plugins` 后这里就能看到。
   支持单个导入、批量导入、发现源更新后的「更新」。

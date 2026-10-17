@@ -251,7 +251,7 @@ export async function createExpert(input, paths) {
   const rawPaths = Array.isArray(input.skillPaths) ? input.skillPaths : (input.skillPath !== undefined ? [input.skillPath] : [])
   const skillPaths = []
   for (const raw of rawPaths) {
-    const path = textOf(raw)
+    const path = cleanPath(raw)
     if (path === '' || skillPaths.includes(path)) continue
     const absolute = expandHome(path)
     try {
@@ -348,6 +348,15 @@ export function normalizeSkillRows(value) {
   return rows
 }
 
+/** Trim and unquote a pasted filesystem path. */
+function cleanPath(value) {
+  let text = textOf(value)
+  if (text.length >= 2 && ((text.startsWith('"') && text.endsWith('"')) || (text.startsWith("'") && text.endsWith("'")))) {
+    text = text.slice(1, -1).trim()
+  }
+  return text
+}
+
 /** Replace an expert's `skills/` tree with the given rows (SKILL.md bodies). */
 async function replaceSkills(dir, rows) {
   const skillsDir = join(dir, 'skills')
@@ -403,7 +412,7 @@ export async function importSkillFromPath(id, sourcePath, paths) {
   assertPaths(paths)
   const folderId = typeof id === 'string' ? id.trim() : ''
   if (!ID_RE.test(folderId)) throw new Error(`专家 id 不合法：${JSON.stringify(id)}`)
-  const raw = textOf(sourcePath)
+  const raw = cleanPath(sourcePath)
   if (raw === '') throw new Error('请提供技能目录或 .md 文件路径')
   const source = expandHome(raw)
   let info
