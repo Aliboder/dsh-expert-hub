@@ -1803,18 +1803,9 @@ window.__ModuleLoader__.load({
       var name = nameOf(card)
       var profession = professionOf(card)
       var desc = strOf(card.description) || strOf(card.roleExcerpt)
-      var tags = listOfStrings(card.tags)
       var skills = skillsOf(card)
       var roleChars = typeof card.roleChars === 'number' && isFinite(card.roleChars) ? card.roleChars : 0
       var sourceLabel = strOf(card.sourceLabel)
-
-      var tagNodes = []
-      for (var i = 0; i < tags.length && i < 4; i++) {
-        tagNodes.push(el('span', { className: 'eh-tag', key: 'tag:' + i, title: tags[i] }, tags[i]))
-      }
-      if (tags.length > 4) {
-        tagNodes.push(el('span', { className: 'eh-tag', key: 'tag:more' }, '+' + (tags.length - 4)))
-      }
 
       var actions = []
       actions.push(el('button', {
@@ -1871,8 +1862,6 @@ window.__ModuleLoader__.load({
               el('span', { className: 'eh-card-name', title: name }, name),
               marks),
             el('span', { className: 'eh-card-sub', title: subOf(card) }, subOf(card)))),
-        desc !== '' ? el('p', { className: 'eh-card-desc', title: desc }, desc) : null,
-        tagNodes.length > 0 ? el('div', { className: 'eh-tags' }, tagNodes) : null,
         el('div', { className: 'eh-card-meta' },
           skills.length > 0 ? el('span', { className: 'eh-meta' }, t('installed.skills', { n: skills.length })) : null,
           el('span', { className: 'eh-meta' }, t('installed.roleChars', { n: roleChars })),
@@ -2594,9 +2583,7 @@ window.__ModuleLoader__.load({
         setFormError('')
         setNotice('')
         var displayName = strOf(values.displayName)
-        var description = strOf(values.description)
         if (displayName === '') { setFormError(t('create.requiredName')); return }
-        if (description === '') { setFormError(t('create.requiredDescription')); return }
         if (strOf(values.roleText) === '') { setFormError(t('create.requiredRole')); return }
         var skillRows = []
         for (var i = 0; i < skills.length; i++) {
@@ -2610,9 +2597,6 @@ window.__ModuleLoader__.load({
         var payload = {
           displayName: displayName,
           profession: strOf(values.profession),
-          description: description,
-          tags: parseTags(values.tags),
-          quickPrompts: parseLines(values.quickPrompts, 6),
           roleText: values.roleText,
           skills: skillRows
         }
@@ -2919,9 +2903,7 @@ window.__ModuleLoader__.load({
         setFormError('')
         setNotice('')
         var displayName = strOf(values.displayName)
-        var description = strOf(values.description)
         if (displayName === '') { setFormError(t('create.requiredName')); return }
-        if (description === '') { setFormError(t('create.requiredDescription')); return }
         if (strOf(values.roleText) === '') { setFormError(t('create.requiredRole')); return }
         var skillRows = []
         for (var i = 0; i < skills.length; i++) {
@@ -2935,9 +2917,6 @@ window.__ModuleLoader__.load({
         var payload = {
           displayName: displayName,
           profession: strOf(values.profession),
-          description: description,
-          tags: parseTags(values.tags),
-          quickPrompts: parseLines(values.quickPrompts, 6),
           roleText: values.roleText,
           skills: skillRows
         }
@@ -3015,8 +2994,6 @@ window.__ModuleLoader__.load({
       if (categoryLabel !== '') badgeNodes.push(el('span', { className: 'eh-badge', key: 'cat' }, categoryLabel))
       badgeNodes.push(el('span', { className: 'eh-badge', key: 'skills' }, t('studio.skillsCount', { n: skills.length })))
       badgeNodes.push(el('span', { className: 'eh-badge', key: 'chars' }, t('studio.roleChars', { n: roleChars })))
-      var tagNodes = []
-      for (var ti = 0; ti < tags.length; ti++) tagNodes.push(el('span', { className: 'eh-tag', key: 'tag:' + ti }, tags[ti]))
 
       var hero = el('div', { className: 'eh-studio-hero' },
         el('div', { className: 'eh-studio-avatar' },
@@ -3029,8 +3006,7 @@ window.__ModuleLoader__.load({
             readOnly ? el('span', { className: 'eh-badge', 'data-kind': 'warn' }, t('studio.readonly')) : null,
             dirty ? el('span', { className: 'eh-studio-dirty' }, t('studio.unsaved')) : null),
           el('p', { className: 'eh-studio-sub' }, professionOf(detailCard) || strOf(detailCard.id)),
-          el('div', { className: 'eh-studio-badges' }, badgeNodes),
-          tagNodes.length > 0 ? el('div', { className: 'eh-studio-tags' }, tagNodes) : null),
+          el('div', { className: 'eh-studio-badges' }, badgeNodes)),
         readOnly
           ? null
           : el('label', { className: 'eh-btn eh-btn-sm eh-studio-avatar-btn' },
@@ -3047,11 +3023,7 @@ window.__ModuleLoader__.load({
           null,
           el('div', { className: 'eh-studio-form-grid' },
             field('displayName', t('create.displayName'), t('create.displayNamePlaceholder'), ''),
-            field('profession', t('create.profession'), t('create.professionPlaceholder'), ''),
-            field('description', t('create.description'), t('create.descriptionPlaceholder'), '', 3, true),
-            field('tags', t('create.tags'), t('create.tagsPlaceholder'), t('create.tagsHint')),
-            field('quickPrompts', t('create.quickPrompts'), t('create.quickPromptsPlaceholder'),
-              t('create.quickPromptsHint'), 3))),
+            field('profession', t('create.profession'), t('create.professionPlaceholder'), ''))),
         section(t('create.role'),
           el('span', { className: 'eh-studio-count' }, t('studio.roleChars', { n: roleChars })),
           field('roleText', '', t('create.rolePlaceholder'), t('create.roleHint'), 14)),
@@ -3357,14 +3329,9 @@ window.__ModuleLoader__.load({
         if (submitting) return
         setFormError('')
         var displayName = strOf(values.displayName)
-        var description = strOf(values.description)
         var roleText = values.roleText
         if (displayName === '') {
           setFormError(t('create.requiredName'))
-          return
-        }
-        if (description === '') {
-          setFormError(t('create.requiredDescription'))
           return
         }
         if (strOf(roleText) === '') {
@@ -3395,9 +3362,6 @@ window.__ModuleLoader__.load({
           id: id,
           displayName: displayName,
           profession: strOf(values.profession),
-          description: description,
-          tags: parseTags(values.tags),
-          quickPrompts: parseLines(values.quickPrompts, 6),
           roleText: roleText,
           skills: skillRows,
           skillPaths: pendingPaths
@@ -3542,11 +3506,6 @@ window.__ModuleLoader__.load({
         props.showId === true
           ? textField('id', t('create.id'), '', t('create.idHint'))
           : null,
-        areaField('description', t('create.description'), t('create.descriptionPlaceholder'), '', 2),
-        el('div', { className: 'eh-form-row' },
-          textField('tags', t('create.tags'), t('create.tagsPlaceholder'), t('create.tagsHint')),
-          areaField('quickPrompts', t('create.quickPrompts'), t('create.quickPromptsPlaceholder'),
-            t('create.quickPromptsHint'), 2)),
         areaField('roleText', t('create.role'), t('create.rolePlaceholder'),
           props.roleHint !== undefined ? props.roleHint : t('create.roleHint'), 8, 'eh-role-input'),
         avatarField)
