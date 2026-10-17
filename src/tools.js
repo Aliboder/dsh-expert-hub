@@ -18,8 +18,9 @@
 
 import { join } from 'node:path'
 
+import { createExpert, importSkillFromPath, updateExpert } from './author.js'
 import { ID_RE, excerptOf, sanitizeRoleText, slugify } from './format.js'
-import { installDraft, installedState, scanInstalled } from './store.js'
+import { installDraft, installedState, readInstalledDetail, scanInstalled } from './store.js'
 import { categoryLabelOf } from './workbuddy.js'
 
 /** Hard caps keep one tool result and one expert folder bounded. */
@@ -343,6 +344,301 @@ export function renderImportResult(args, value) {
   return `已导入专家「${name}」（id: ${value.expert?.id ?? ''}）${suffix}${warning}`
 }
 
+/** Error for expert_manage actions. */
+export class ManageToolError extends Error {
+  constructor(code, message, hints) {
+    super(message ?? code)
+    this.name = 'ManageToolError'
+    this.code = code
+    this.hints = hints
+  }
+}
+
+/** Compact card summary used by list/get results. */
+function summarizeCard(card) {
+  return {
+    id: card.id,
+    displayName: card.displayName ?? card.id,
+    profession: card.profession ?? '',
+    categoryLabel: card.categoryLabel ?? '',
+    sourceLabel: card.sourceLabel ?? '',
+    skills: Array.isArray(card.skills) ? card.skills.length : 0,
+    roleChars: typeof card.roleChars === 'number' ? card.roleChars : 0,
+    broken: card.broken ?? '',
+  }
+}
+
+/** Normalize the skill rows read from an installed detail. */
+function skillRowsOf(detail) {
+  return (detail?.skills ?? []).map((skill) => ({ name: skill.name, content: skill.content ?? '' }))
+}
+
+/** Require a valid expert id. */
+function requireId(value) {
+  const id = textOf(value)
+  if (id === '' || !ID_RE.test(id)) throw new ManageToolError('INVALID_ID', `专家 id 不合法：${JSON.stringify(value)}`)
+  return id
+}
+
+/** Activate one expert in the calling session when requested. */
+async function activateExpert(id, deps) {
+  if (deps.activate !== true) return { activated: false, activateError: '' }
+  if (!deps.sessionId) return { activated: false, activateError: '当前调用没有会话上下文，未自动启用' }
+  if (!deps.switcher || typeof deps.switcher.switchTo !== 'function') {
+    return { activated: false, activateError: '当前环境不支持会话内启用' }
+  }
+  try {
+    const result = await deps.switcher.switchTo(deps.sessionId, id)
+    return { activated: true, activateError: '', result }
+  } catch (error) {
+    return { activated: false, activateError: error instanceof Error ? error.message : String(error) }
+  }
+}
+
+/**
+ * Read or mutate the expert library for the model.
+ *
+ * @param {object} args
+ * @param {{ paths: object, switcher?: object, sessionId?: string }} deps
+ */
+export async function runExpertManage(args, deps) {
+  const input = args !== null && typeof args === 'object' ? args : {}
+  const action = textOf(input.action)
+  if (action === 'list') {
+    const state = await installedState(deps.paths)
+    return {
+      ok: true,
+      action,
+      experts: state.cards.map(summarizeCard),
+      hints: ['用 action=get 读取某位专家的角色提示词与技能；用 update / add_skill / remove_skill 修改。'],
+    }
+  }
+  if (action === 'get') {
+    const id = requireId(input.id)
+    let detail
+    try {
+      detail = await readInstalledDetail(deps.paths, id)
+    } catch {
+      throw new ManageToolError('EXPERT_NOT_FOUND', `找不到已安装专家：${id}`)
+    }
+    return {
+      ok: true,
+      action,
+      expert: summarizeCard(detail.card),
+      roleText: clip(detail.roleText ?? '', MAX_INSPECT_ROLE_CHARS),
+      roleChars: (detail.roleText ?? '').length,
+      skills: skillRowsOf(detail).map((skill) => ({
+        name: skill.name,
+        chars: skill.content.length,
+        content: clip(skill.content, MAX_INSPECT_ROLE_CHARS),
+      })),
+      hints: ['用 update 修改 displayName/profession/roleText/skills；用 add_skill/remove_skill 单独管理技能。'],
+    }
+  }
+  if (action === 'create') {
+    const expertInput = input.expert !== null && typeof input.expert === 'object' ? input.expert : null
+    if (expertInput === null) throw new ManageToolError('EXPERT_MISSING', 'create 需要 expert 参数')
+    const card = await createExpert(expertInput, deps.paths)
+    const activation = await activateExpert(card.id, { ...deps, activate: input.activate === true })
+    return {
+      ok: true,
+      action,
+      expert: summarizeCard(card),
+      activated: activation.activated,
+      activateError: activation.activateError,
+      hints: ['用 get 检查写入结果；用 use 在当前会话启用。'],
+    }
+  }
+  if (action === 'update') {
+    const id = requireId(input.id)
+    const patch = input.patch !== null && typeof input.patch === 'object' ? input.patch : null
+    if (patch === null) throw new ManageToolError('PATCH_MISSING', 'update 需要 patch 参数')
+    const card = await updateExpert(id, patch, deps.paths)
+    const activation = await activateExpert(id, { ...deps, activate: input.activate === true })
+    return {
+      ok: true,
+      action,
+      expert: summarizeCard(card),
+      activated: activation.activated,
+      activateError: activation.activateError,
+      hints: ['如果该专家正在当前会话使用，activate=true 可立即刷新角色与技能。'],
+    }
+  }
+  if (action === 'add_skill') {
+    const id = requireId(input.id)
+    const skill = input.skill !== null && typeof input.skill === 'object' ? input.skill : null
+    if (skill === null) throw new ManageToolError('SKILL_MISSING', 'add_skill 需要 skill:{name, content}')
+    const detail = await readInstalledDetail(deps.paths, id).catch(() => {
+      throw new ManageToolError('EXPERT_NOT_FOUND', `找不到已安装专家：${id}`)
+    })
+    const rows = skillRowsOf(detail)
+    const base = textOf(skill.name) || 'skill'
+    const name = ID_RE.test(base) ? base : slugify(base, 'skill')
+    const content = sanitizeRoleText(skill.content)
+    if (content === '') throw new ManageToolError('SKILL_EMPTY', '技能内容不能为空')
+    const index = rows.findIndex((row) => row.name === name)
+    if (index >= 0) rows[index] = { name, content }
+    else rows.push({ name, content })
+    const card = await updateExpert(id, { skills: rows }, deps.paths)
+    return { ok: true, action, expert: summarizeCard(card), skill: name, replaced: index >= 0 }
+  }
+  if (action === 'remove_skill') {
+    const id = requireId(input.id)
+    const name = textOf(input.name)
+    if (name === '') throw new ManageToolError('SKILL_NAME_MISSING', 'remove_skill 需要 name')
+    const detail = await readInstalledDetail(deps.paths, id).catch(() => {
+      throw new ManageToolError('EXPERT_NOT_FOUND', `找不到已安装专家：${id}`)
+    })
+    const rows = skillRowsOf(detail)
+    const next = rows.filter((row) => row.name !== name)
+    if (next.length === rows.length) throw new ManageToolError('SKILL_NOT_FOUND', `该专家没有技能：${name}`)
+    const card = await updateExpert(id, { skills: next }, deps.paths)
+    return { ok: true, action, expert: summarizeCard(card), skill: name, skills: next.length }
+  }
+  if (action === 'import_skill') {
+    const id = requireId(input.id)
+    const path = textOf(input.path)
+    if (path === '') throw new ManageToolError('PATH_MISSING', 'import_skill 需要 path（本机技能目录或 .md）')
+    const card = await importSkillFromPath(id, path, deps.paths)
+    return { ok: true, action, expert: summarizeCard(card), path }
+  }
+  if (action === 'use') {
+    const id = requireId(input.id)
+    const activation = await activateExpert(id, { ...deps, activate: true })
+    if (!activation.activated) throw new ManageToolError('ACTIVATE_FAILED', activation.activateError || '启用失败')
+    return { ok: true, action, expert: { id }, result: activation.result }
+  }
+  throw new ManageToolError(
+    'ACTION_INVALID',
+    `未知 action：${JSON.stringify(input.action)}`,
+    ['可用 action：list、get、create、update、add_skill、remove_skill、import_skill、use。'],
+  )
+}
+
+/** Render an expert_manage result for the transcript. */
+export function renderManageResult(args, value) {
+  if (value === null || typeof value !== 'object') return '专家管理：无结果'
+  if (value.ok === false) return `专家管理失败：${value.message ?? value.code ?? '未知错误'}`
+  const name = value.expert?.displayName ?? value.expert?.id ?? ''
+  switch (value.action) {
+    case 'list':
+      return `已安装 ${value.experts?.length ?? 0} 位专家：${(value.experts ?? []).map((item) => `${item.displayName}（${item.id}）`).join('、')}`
+    case 'get':
+      return `已读取专家「${name}」：${value.roleChars ?? 0} 字角色，${value.skills?.length ?? 0} 个技能。`
+    case 'create':
+      return `已创建专家「${name}」（id: ${value.expert?.id ?? ''}）${value.activated === true ? '，已在当前会话启用' : ''}${value.activateError ? `，启用失败：${value.activateError}` : ''}`
+    case 'update':
+      return `已更新专家「${name}」${value.activated === true ? '，已在当前会话生效' : ''}${value.activateError ? `，启用失败：${value.activateError}` : ''}`
+    case 'add_skill':
+      return `${value.replaced === true ? '已替换' : '已添加'}技能「${value.skill}」到专家「${name}」`
+    case 'remove_skill':
+      return `已从专家「${name}」删除技能「${value.skill}」，剩余 ${value.skills} 个技能。`
+    case 'import_skill':
+      return `已从 ${value.path} 导入技能到专家「${name}」。`
+    case 'use':
+      return `已在当前会话启用专家「${value.expert?.id ?? ''}」。`
+    default:
+      return '专家管理完成。'
+  }
+}
+
+/** The expert_manage tool definition. */
+export function expertManageToolDefinition({ paths, switcher, logger }) {
+  const warn = logger?.warn ?? (() => {})
+  return {
+    name: 'expert_manage',
+    description:
+      '查看和修改 DSH 专家库：列出专家、读取某位专家的角色提示词与技能、创建专家、修改显示名/职业/角色提示词/技能、单独添加或删除技能、从本机目录导入技能、或在当前会话启用专家。用户说“改一下某专家的提示词/加个技能/删掉这个技能/新建专家/让我用某专家”时使用。网页来源的整专家导入请用 expert_import；删除专家请让用户在设置页操作。修改当前正在使用的专家后传 activate=true 可立即刷新。',
+    parameters: {
+      type: 'object',
+      properties: {
+        action: {
+          type: 'string',
+          enum: ['list', 'get', 'create', 'update', 'add_skill', 'remove_skill', 'import_skill', 'use'],
+          description: 'list=列出已安装专家；get=读取详情；create=新建；update=改资料/角色/技能树；add_skill/remove_skill=单个技能；import_skill=从本机路径导入；use=在当前会话启用。',
+        },
+        id: { type: 'string', description: '专家 id（list/get/update/add_skill/remove_skill/import_skill/use 必填）。' },
+        expert: {
+          type: 'object',
+          description: 'create 使用：新专家。displayName 与 roleText 必填。',
+          properties: {
+            id: { type: 'string', description: '可选 kebab-case id，冲突时自动加后缀。' },
+            displayName: { type: 'string' },
+            profession: { type: 'string' },
+            roleText: { type: 'string', description: '角色提示词正文。' },
+            skills: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: { name: { type: 'string' }, content: { type: 'string' } },
+                required: ['name', 'content'],
+                additionalProperties: false,
+              },
+            },
+          },
+          required: ['displayName', 'roleText'],
+          additionalProperties: false,
+        },
+        patch: {
+          type: 'object',
+          description: 'update 使用：只传要改的字段；skills 会整树替换（不传则保留现有技能）。',
+          properties: {
+            displayName: { type: 'string' },
+            profession: { type: 'string' },
+            roleText: { type: 'string' },
+            skills: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: { name: { type: 'string' }, content: { type: 'string' } },
+                required: ['name', 'content'],
+                additionalProperties: false,
+              },
+            },
+          },
+          additionalProperties: false,
+        },
+        skill: {
+          type: 'object',
+          description: 'add_skill 使用：技能名 + SKILL.md 内容。同名技能会被替换。',
+          properties: { name: { type: 'string' }, content: { type: 'string' } },
+          required: ['name', 'content'],
+          additionalProperties: false,
+        },
+        name: { type: 'string', description: 'remove_skill 使用：要删除的技能名。' },
+        path: { type: 'string', description: 'import_skill 使用：本机技能目录、含多个技能的父目录或单个 .md 的绝对路径（支持 ~）。' },
+        activate: { type: 'boolean', description: 'create/update 后是否在当前会话启用或刷新生效，默认 false。' },
+      },
+      required: ['action'],
+      additionalProperties: false,
+    },
+    output: {
+      schema: { type: 'object' },
+      render: (_args, value) => [{ type: 'text', text: renderManageResult(_args, value) }],
+    },
+    timeoutMs: TOOL_TIMEOUT_MS,
+    isConcurrencySafe: () => false,
+    presentCall(args) {
+      const label = args?.id ?? args?.expert?.displayName ?? args?.action ?? '专家'
+      return { card: 'generic', title: '管理专家', kind: 'edit', rawInput: String(label) }
+    },
+    async execute(args, exec) {
+      try {
+        const sessionId = exec?.agent?.id !== undefined ? String(exec.agent.id) : undefined
+        return await runExpertManage(args, { paths, switcher, sessionId })
+      } catch (error) {
+        if (error instanceof ManageToolError) {
+          warn(`expert_manage 失败：${error.message}`)
+          return { ok: false, code: error.code, message: error.message, hints: error.hints ?? [] }
+        }
+        const message = error instanceof Error ? error.message : String(error)
+        warn(`expert_manage 失败：${message}`)
+        return { ok: false, code: 'MANAGE_FAILED', message }
+      }
+    },
+  }
+}
+
 /** The tool definition, registered by registerExpertTools(). */
 export function expertImportToolDefinition({ paths, switcher, logger }) {
   const warn = logger?.warn ?? (() => {})
@@ -443,5 +739,17 @@ export function registerExpertTools(ctx, options) {
   if (ctx === null || typeof ctx !== 'object' || ctx.tools === undefined || typeof ctx.tools.register !== 'function') {
     return () => {}
   }
-  return ctx.tools.register(expertImportToolDefinition(options))
+  const disposers = [
+    ctx.tools.register(expertImportToolDefinition(options)),
+    ctx.tools.register(expertManageToolDefinition(options)),
+  ]
+  return () => {
+    for (const dispose of disposers) {
+      try {
+        dispose()
+      } catch {
+        // Disposal is best-effort; plugin teardown already ignores late failures.
+      }
+    }
+  }
 }

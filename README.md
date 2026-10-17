@@ -83,11 +83,27 @@ dsh plugin --profile web add <本插件目录或包名>
 AI 的处理流程：
 
 1. **读取**：网页正文用 `web_fetch` 读取；专家压缩包、本机目录、单个 `.md` 交给插件读取；
-2. **整理**：归一成一位专家的完整条目——中文显示名、职业/称号、一句话简介、标签、快捷提示词、`role.md` 角色提示词（必要时附技能正文）；
+2. **整理**：归一成一位专家的完整条目——中文显示名、职业/称号、`role.md` 角色提示词（必要时附技能正文）；
 3. **写入**：调用 `expert_import({expert:{…}})` 写入 `~/.dsh/experts/<id>/`，并给出来源记录；
 4. **选用**（可选）：用户说"导入并直接用"时传 `activate: true`，立刻在当前会话启用。
 
 来源里有多位专家时，AI 会先问你要导入哪几位，再逐个写入；已有的同名专家不会被覆盖，会自动改用 `-2` 后缀。
+
+### 对话内管理专家
+
+除了设置页，也可以直接让 agent 改专家：
+
+```text
+列出专家库里有哪些专家
+看看「电脑管家」的角色提示词
+把「电脑管家」的职业改成“硬件工程师”，角色提示词里加上二手配件避坑
+给「像素君」加一个技能：设计评审清单，内容是……
+从 D:\skills\my-skill 导入技能到「像素君」
+让我用「码小序」
+```
+
+对应模型工具 `expert_manage`，支持 `list / get / create / update / add_skill / remove_skill / import_skill / use`。
+删除专家仍只在设置页操作，避免对话里误删。
 
 ### 会话内切换
 
@@ -161,7 +177,7 @@ npm run check   # node --check 两个入口
 | `src/switch.js` | 串行切换事务、回滚、选择恢复 |
 | `src/selections.js` | 会话选择 sidecar |
 | `src/importers.js` | 压缩包 / 本机目录读取、zip/tar.gz 安全解压 |
-| `src/tools.js` | 模型工具 `expert_import`：来源读取 + AI 整理后的写入 |
+| `src/tools.js` | 模型工具 `expert_import`（AI 整理导入）+ `expert_manage`（对话内查看/修改专家与技能） |
 | `src/author.js` | 新建 / 编辑（含 skills）/ 从目录导入技能 / 回收站恢复 |
 | `src/routes.js` | `/expert-hub/*` 路由与 SSE |
 | `client.js` | 设置页 + 会话胶囊（浏览器半） |

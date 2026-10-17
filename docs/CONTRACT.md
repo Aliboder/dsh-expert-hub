@@ -253,6 +253,34 @@ type ExpertImportArgs = {
 - 写入：`{ ok:true, mode:'install', expert:Card, dir, activated:boolean, activateError?, warnings }`
 - 失败：`{ ok:false, code, message, hints? }`（不抛异常，让模型可自行修正）
 
+## 13. 模型工具 `expert_manage`
+
+让用户直接在对话里查看/修改专家，而不必打开设置页。与 `expert_import` 共用 tools 注册
+（`ctx.inject(['tools'])`），但职责不同：`expert_import` 负责“把外部来源整理成一位新专家”，
+`expert_manage` 负责“管理专家库里已有的专家”。
+
+### 13.1 action
+
+| action | 入参 | 行为 |
+|---|---|---|
+| `list` | — | 列出已安装专家（id/显示名/职业/技能数/角色字数/来源） |
+| `get` | `id` | 读取一位专家的角色提示词与技能正文（单段截断到 60k 字） |
+| `create` | `expert:{displayName, roleText, profession?, id?, skills?}` | 新建专家，可选 `activate` |
+| `update` | `id`, `patch:{displayName?, profession?, roleText?, skills?}` | 只改传入字段；`skills` 整树替换 |
+| `add_skill` | `id`, `skill:{name, content}` | 新增或替换单个技能 |
+| `remove_skill` | `id`, `name` | 删除单个技能 |
+| `import_skill` | `id`, `path` | 从本机技能目录 / 父目录 / 单个 `.md` 导入 |
+| `use` | `id` | 在当前会话启用该专家 |
+
+`create` / `update` 支持 `activate: true`：写入后立即在当前会话启用或刷新；
+当前专家被修改后建议 `activate:true`，否则旧的角色/技能组合会保持到下次切换。
+
+### 13.2 返回值
+
+`{ ok:true, action, expert?, roleText?, skills?, activated?, activateError?, hints? }`；
+失败为 `{ ok:false, code, message, hints? }`。删除专家不在工具里开放，需用户在设置页操作。
+
+
 ### 12.4 AI 整理约定（工具 description 已写明）
 
 1. 先读取来源，保留角色提示词原文要点，去掉导航/广告/页脚；
