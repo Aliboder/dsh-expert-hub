@@ -390,6 +390,11 @@ window.__ModuleLoader__.load({
   .eh-studio-grid { grid-template-columns: minmax(0, 1fr); }
   .eh-dialog { width: calc(100vw - 20px); }
 }
+@media (max-width: 640px) {
+  .eh-studio-form-grid { grid-template-columns: minmax(0, 1fr); }
+  .eh-studio-form-grid .eh-span-2 { grid-column: auto; }
+  .eh-skill-import { flex-direction: column; align-items: stretch; }
+}
 
 /* ── 详情 ─────────────────────────────────────────────────────────────── */
 .eh-detail-top { display: flex; align-items: center; gap: 12px; min-width: 0; }
