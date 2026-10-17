@@ -247,12 +247,39 @@ export function splitFrontmatter(text) {
   const close = lines.findIndex((line, index) => index > 0 && line.trim() === '---')
   if (close < 0) return { fields: {}, body: source }
   const fields = {}
-  for (const line of lines.slice(1, close)) {
+  let i = 1
+  while (i < close) {
+    const line = lines[i]
     const match = /^([A-Za-z_][A-Za-z0-9_-]*):[ \t]*(.*)$/.exec(line.trim())
-    if (match === null) continue
+    if (match === null) {
+      i += 1
+      continue
+    }
+    const key = match[1]
     const raw = match[2].trim()
-    if (raw === '') continue
-    fields[match[1]] = String(parseScalar(raw))
+    if (raw === '|' || raw === '>' || raw === '|-' || raw === '>-' || raw === '|+' || raw === '>+') {
+      // YAML block scalar: collect the indented lines that follow.
+      const folded = raw.startsWith('>')
+      const block = []
+      let j = i + 1
+      while (j < close) {
+        const next = lines[j]
+        if (next.trim() === '') {
+          block.push('')
+          j += 1
+          continue
+        }
+        if (!/^[ \t]/.test(next)) break
+        block.push(next.replace(/^[ \t]+/, ''))
+        j += 1
+      }
+      while (block.length > 0 && block[block.length - 1] === '') block.pop()
+      fields[key] = block.join(folded ? ' ' : '\n').trim()
+      i = j
+      continue
+    }
+    if (raw !== '') fields[key] = String(parseScalar(raw))
+    i += 1
   }
   return { fields, body: lines.slice(close + 1).join('\n') }
 }

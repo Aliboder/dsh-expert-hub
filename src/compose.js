@@ -25,6 +25,35 @@ export const ROLE_SECTION_NAME = 'expert-role'
 /** Documented free band: after the deployment persona, before PLAN_POLICY. */
 export const ROLE_SECTION_ORDER = 150
 
+/**
+ * Process-global composition registry.
+ *
+ * A plugin reload (bundle toggle, HMR) disposes the old module instance but the
+ * live agents keep their scoped registrations. Keeping the disposers on
+ * `globalThis` lets the next apply() release those orphan sections/skills
+ * instead of leaving a stale expert persona on a running agent.
+ */
+const REGISTRY_KEY = '__dshExpertHubCompositions'
+
+/** @returns {Map<string, () => void>} */
+function compositionRegistry() {
+  if (globalThis[REGISTRY_KEY] === undefined) globalThis[REGISTRY_KEY] = new Map()
+  return globalThis[REGISTRY_KEY]
+}
+
+/** Dispose every composition left behind by a previous plugin instance. */
+export function disposeStaleCompositions() {
+  const registry = compositionRegistry()
+  for (const [key, dispose] of [...registry.entries()]) {
+    try {
+      dispose()
+    } catch {
+      // A stale disposer may already be invalid; never block plugin startup.
+    }
+    registry.delete(key)
+  }
+}
+
 /** One line that tells the model which expert persona it is running. */
 export function roleMetaLine(detail) {
   const name = detail.card?.displayName ?? detail.card?.id ?? detail.id ?? '专家'
@@ -123,7 +152,17 @@ export function composeExpert(agent, detail, logger = {}) {
       throw new Error('systemPrompt 服务不可用，无法挂载专家角色')
     }
     registered.push(systemPrompt.section({ name: ROLE_SECTION_NAME, order: ROLE_SECTION_ORDER, text }))
-    return { expertId, dispose: cleanup }
+    const key = `agent:${String(agent.id ?? 'unknown')}`
+    const registry = compositionRegistry()
+    const dispose = () => {
+      try {
+        cleanup()
+      } finally {
+        registry.delete(key)
+      }
+    }
+    registry.set(key, dispose)
+    return { expertId, dispose }
   } catch (error) {
     cleanup()
     throw error

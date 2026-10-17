@@ -99,6 +99,31 @@ assert.match(agent.sections.get('expert-role').text, /Beta/)
 assert.equal(switcher.current('s1').expertId, 'beta')
 assert.equal(switcher.current('s1').applied, true)
 
+// A running turn queues the switch instead of blocking the caller: the call
+// returns immediately, composition lands after whenIdle() resolves.
+const runningAgent = makeAgent('s-run')
+runningAgent.status = 'running'
+runningAgent.whenIdle = () => new Promise((resolve) => setTimeout(resolve, 20))
+agents.set('s-run', runningAgent)
+const queued = await switcher.switchTo('s-run', 'alpha')
+assert.equal(queued.applied, false)
+assert.equal(queued.queued, true)
+assert.equal(runningAgent.sections.has('expert-role'), false)
+await new Promise((resolve) => setTimeout(resolve, 90))
+assert.match(runningAgent.sections.get('expert-role').text, /Alpha/)
+
+// A clear cancels a queued switch and never waits behind it.
+const cancellingAgent = makeAgent('s-cancel')
+cancellingAgent.status = 'running'
+cancellingAgent.whenIdle = () => new Promise((resolve) => setTimeout(resolve, 30))
+agents.set('s-cancel', cancellingAgent)
+await switcher.switchTo('s-cancel', 'alpha')
+const cleared2 = await switcher.switchTo('s-cancel', null)
+assert.equal(cleared2.applied, true)
+assert.equal(selections.get('s-cancel'), undefined)
+await new Promise((resolve) => setTimeout(resolve, 100))
+assert.equal(cancellingAgent.sections.has('expert-role'), false)
+
 // Clearing removes the section and the stored choice.
 const cleared = await switcher.switchTo('s1', null)
 assert.equal(cleared.applied, true)

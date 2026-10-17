@@ -109,6 +109,7 @@ type SessionState = {
   expertId: string | null
   displayName?: string
   applied: boolean     // true=已挂载到 live agent；false=已登记、等 agent 出现后自动挂载
+  queued?: boolean     // true=已登记，等当前轮次结束后再挂载（调用立即返回）
 }
 ```
 
@@ -136,6 +137,7 @@ body 上限 1 MiB（头像单独 8 MiB）。
 | 9 | POST | `/update` | `{ id, patch:{ displayName?, description?, profession?, tags?, quickPrompts? }, roleText?, avatarDataUrl? }` | `{ ok, expert:Card }` |
 | 10 | POST | `/delete` | `{ id }` | `{ ok }` |
 | 11 | GET | `/events` | — | `text/event-stream`；事件 `state`，data 为 `{ revision }`；每 25s 一行 `: ping` |
+| 12 | GET | `/diagnostics?sessionId=` | — | 只读诊断：`{ ok, agents:[{sessionId,status}], skills:[{name,description,provider,source}], expert? }`；用于确认专家与技能是否真的注册到某个 agent 作用域 |
 
 > 网页 URL 导入已移除：网页/在线内容改由模型工具 `expert_import`（§12）读取并整理，
 > 用户不再需要自己填写网址。`importers.js` 仍为工具读取压缩包/本机目录服务。

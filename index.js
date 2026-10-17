@@ -15,6 +15,7 @@
  */
 
 import { registerExpertCommand } from './src/command.js'
+import { disposeStaleCompositions } from './src/compose.js'
 import { createPaths } from './src/paths.js'
 import { createRoutes } from './src/routes.js'
 import { openSelections } from './src/selections.js'
@@ -49,6 +50,10 @@ export async function apply(ctx, config = {}) {
 
   const selections = await openSelections(paths.stateFile, { warn })
 
+  // A reload leaves old scoped sections/skills on live agents; release them
+  // before this instance registers anything new.
+  disposeStaleCompositions()
+
   /** Resolve one live agent by session id, tolerant of host service shapes. */
   function resolveAgent(sessionId) {
     const agents = typeof ctx.get === 'function' ? ctx.get('agents') : undefined
@@ -72,11 +77,44 @@ export async function apply(ctx, config = {}) {
     onChange: () => routes?.bump?.(),
   })
 
+  /** Read-only diagnostics: live agents plus one session's registered skills. */
+  async function diagnostics(sessionId) {
+    const agentsService = typeof ctx.get === 'function' ? ctx.get('agents') : undefined
+    let agents = []
+    try {
+      if (agentsService !== undefined && typeof agentsService.list === 'function') {
+        agents = agentsService.list().map((agent) => ({ sessionId: sessionIdOf(agent), status: agent.status }))
+      }
+    } catch (error) {
+      warn(`diagnostics agents failed: ${error?.message ?? error}`)
+    }
+    const agent = typeof sessionId === 'string' && sessionId !== '' ? resolveAgent(sessionId) : undefined
+    let skills = []
+    if (agent !== undefined) {
+      const skillsService = typeof ctx.get === 'function' ? ctx.get('skills') : undefined
+      if (skillsService !== undefined && typeof skillsService.list === 'function') {
+        try {
+          const list = await skillsService.list({ scope: agent })
+          skills = list.map((skill) => ({
+            name: skill.name,
+            description: skill.description,
+            provider: skill.provider,
+            source: skill.source,
+          }))
+        } catch (error) {
+          skills = [{ error: error?.message ?? String(error) }]
+        }
+      }
+    }
+    return { agents, skills }
+  }
+
   routes = createRoutes({
     paths,
     switcher,
     selections,
     ensureApplied: (sessionId) => switcher.ensureApplied(sessionId),
+    diagnostics,
     logger: { warn },
   })
 

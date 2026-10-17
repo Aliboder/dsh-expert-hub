@@ -123,8 +123,12 @@ export function skillNameOf(dirName) {
 /** First heading/paragraph of a SKILL.md body as a routing description. */
 export function skillDescriptionOf(markdown) {
   const { fields, body } = splitFrontmatter(markdown)
-  const stated = textOf(fields.description) || textOf(fields.when_to_use) || textOf(fields.whenToUse)
-  if (stated !== '') return stated.slice(0, 200)
+  const stated =
+    textOf(fields.description_zh) ||
+    textOf(fields.description) ||
+    textOf(fields.when_to_use) ||
+    textOf(fields.whenToUse)
+  if (stated !== '') return stated.replace(/\s+/g, ' ').slice(0, 200)
   for (const line of body.split('\n')) {
     const trimmed = line.trim()
     if (trimmed === '') continue

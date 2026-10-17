@@ -68,7 +68,7 @@ function fail(res, error) {
  * @param {object} options.selections
  * @param {{warn?: (message: string) => void}} [options.logger]
  */
-export function createRoutes({ paths, switcher, selections, ensureApplied, logger = {} }) {
+export function createRoutes({ paths, switcher, selections, ensureApplied, diagnostics, logger = {} }) {
   const warn = logger.warn ?? (() => {})
   const clients = new Set()
   const runtime = { revision: 1, cache: undefined, cacheAt: 0 }
@@ -303,6 +303,17 @@ export function createRoutes({ paths, switcher, selections, ensureApplied, logge
       client.frame('state', { revision: runtime.revision })
       req.on('close', () => clients.delete(client))
       res.on('close', () => clients.delete(client))
+      return
+    }
+    if (method === 'GET' && path === '/diagnostics') {
+      const sessionId = url.searchParams.get('sessionId') ?? ''
+      const inspected = typeof diagnostics === 'function' ? await diagnostics(sessionId) : {}
+      sendJson(res, 200, {
+        ok: true,
+        sessionId,
+        expert: typeof sessionId === 'string' && sessionId !== '' ? switcher.current(sessionId) : undefined,
+        ...inspected,
+      })
       return
     }
 

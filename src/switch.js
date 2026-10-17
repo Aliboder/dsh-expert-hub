@@ -57,6 +57,8 @@ export function createSwitcher(options) {
   const states = new Map()
   /** sessionId → tail promise (serial chain) */
   const chains = new Map()
+  /** sessionId → a waiter is composing after the current turn ends */
+  const pending = new Set()
 
   /** Run `task` after the session's previous transaction settled. */
   function serialize(sessionId, task) {
@@ -135,14 +137,16 @@ export function createSwitcher(options) {
    */
   async function switchTo(sessionId, expertId) {
     if (typeof sessionId !== 'string' || sessionId === '') throw new Error('缺少会话 id')
+    // Clearing is immediate: it must cancel any switch still waiting for the
+    // current turn to finish, and it must never block behind that wait.
+    if (expertId === null || expertId === '') {
+      disposeState(sessionId)
+      selections.set(sessionId, null)
+      onChange()
+      return { sessionId, expertId: null, applied: true }
+    }
     return serialize(sessionId, async () => {
       const agent = resolveAgent(sessionId)
-      if (expertId === null || expertId === '') {
-        disposeState(sessionId)
-        selections.set(sessionId, null)
-        onChange()
-        return { sessionId, expertId: null, applied: true }
-      }
       const detail = await readInstalledDetail(paths, expertId)
       const displayName = detail.card?.displayName
       if (agent === undefined || agent === null) {
@@ -156,6 +160,33 @@ export function createSwitcher(options) {
         selections.set(sessionId, expertId)
         onChange()
         return { sessionId, expertId, displayName, applied: true }
+      }
+      // A running turn keeps its current prompt until the boundary. Persist the
+      // choice and let ONE waiter apply whatever is selected after idle: a newer
+      // switch or a clear simply overwrites the selection the waiter reads.
+      if (agent.status === 'running' && typeof agent.whenIdle === 'function') {
+        selections.set(sessionId, expertId)
+        onChange()
+        if (!pending.has(sessionId)) {
+          pending.add(sessionId)
+          void (async () => {
+            try {
+              const live = resolveAgent(sessionId)
+              if (live === undefined || live === null) return
+              await waitIdle(live, logger)
+              const target = selections.get(sessionId)?.expertId
+              if (target === null || target === undefined) return
+              const latest = await readInstalledDetail(paths, target)
+              await recompose(live, latest, sessionId)
+              onChange()
+            } catch (error) {
+              warn(`排队切换专家失败：${error?.message ?? error}`)
+            } finally {
+              pending.delete(sessionId)
+            }
+          })().catch(() => {})
+        }
+        return { sessionId, expertId, displayName, applied: false, queued: true }
       }
       await waitIdle(agent, logger)
       await recompose(agent, detail, sessionId)
@@ -202,6 +233,7 @@ export function createSwitcher(options) {
     disposeState(sessionId)
     selections.remove(sessionId)
     chains.delete(sessionId)
+    pending.delete(sessionId)
   }
 
   /**
@@ -211,9 +243,13 @@ export function createSwitcher(options) {
   async function ensureApplied(sessionId) {
     if (typeof sessionId !== 'string' || sessionId === '') return
     if (states.has(sessionId)) return
+    if (pending.has(sessionId)) return
     const stored = selections.get(sessionId)
     if (stored === undefined || stored.expertId === null) return
-    if (resolveAgent(sessionId) === undefined) return
+    const agent = resolveAgent(sessionId)
+    // A running agent is handled by the queued waiter; retrying from a polling
+    // /state call would rewrite the selection on every poll.
+    if (agent === undefined || agent === null || agent.status === 'running') return
     try {
       await switchTo(sessionId, stored.expertId)
     } catch (error) {
