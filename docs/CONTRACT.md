@@ -134,10 +134,13 @@ body 上限 1 MiB（头像单独 8 MiB）。
 | 6 | POST | `/import` | `{ ids: string[] }` | `{ ok, imported:{id,dir}[], failed:{id,error}[] }`；已安装的 id 走"更新"（覆盖为源内容），自建专家不会被覆盖 |
 | 7 | POST | `/import-path` | `{ path: string }` | `{ ok, experts:Card[], imported:{id,dir}[] , warnings:string[] }` |
 | 8 | POST | `/create` | `{ expert:{ id?, displayName, description, profession?, tags?, roleText, category? }, avatarDataUrl? }` | `{ ok, expert:Card }` |
-| 9 | POST | `/update` | `{ id, patch:{ displayName?, description?, profession?, tags?, quickPrompts? }, roleText?, avatarDataUrl? }` | `{ ok, expert:Card }` |
-| 10 | POST | `/delete` | `{ id }` | `{ ok }` |
+| 9 | POST | `/update` | `{ id, patch:{ displayName?, description?, profession?, tags?, quickPrompts?, skills?: [{name,content}] }, roleText?, avatarDataUrl? }` | `{ ok, expert:Card }`；`skills` 存在时整树替换（保留未改名技能目录里的资源文件） |
+| 10 | POST | `/delete` | `{ id }` | `{ ok }`；软删除到回收站 |
 | 11 | GET | `/events` | — | `text/event-stream`；事件 `state`，data 为 `{ revision }`；每 25s 一行 `: ping` |
 | 12 | GET | `/diagnostics?sessionId=` | — | 只读诊断：`{ ok, agents:[{sessionId,status}], skills:[{name,description,provider,source}], expert? }`；用于确认专家与技能是否真的注册到某个 agent 作用域 |
+| 13 | GET | `/trash` | — | `{ ok, items:[{name, id, displayName, deletedAt}] }` |
+| 14 | POST | `/restore-trash` | `{ name }` | `{ ok, expert:Card }`；目标 id 已存在时拒绝 |
+| 15 | POST | `/skill-import` | `{ id, path }` | `{ ok, expert:Card }`；path 支持技能目录 / 多个技能的父目录 / 单个 `.md` |
 
 > 网页 URL 导入已移除：网页/在线内容改由模型工具 `expert_import`（§12）读取并整理，
 > 用户不再需要自己填写网址。`importers.js` 仍为工具读取压缩包/本机目录服务。

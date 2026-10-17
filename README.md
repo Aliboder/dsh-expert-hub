@@ -56,6 +56,8 @@ dsh plugin --profile web add <本插件目录或包名>
 ### 专家中心（设置 → 专家中心）
 
 - **已安装**：专家卡片墙，支持搜索、分类筛选、排序；卡片操作：详情 / 编辑 / 删除 / 更新。
+  编辑里可以改元数据、`role.md`、头像，也能**增删改技能**（每个技能写 `SKILL.md`）或**从目录导入技能**；
+  删除是软删除，页面底部「回收站」可以一键恢复。
 - **WorkBuddy 市场**：本机 WorkBuddy 里已"召唤"的专家。首次使用需在 WorkBuddy 专家中心
   点击「召唤」，专家落盘到 `~/.workbuddy/plugins/marketplaces/experts/plugins` 后这里就能看到。
   支持单个导入、批量导入、发现源更新后的「更新」。
@@ -159,7 +161,7 @@ npm run check   # node --check 两个入口
 | `src/selections.js` | 会话选择 sidecar |
 | `src/importers.js` | 压缩包 / 本机目录读取、zip/tar.gz 安全解压 |
 | `src/tools.js` | 模型工具 `expert_import`：来源读取 + AI 整理后的写入 |
-| `src/author.js` | 新建 / 编辑 / 删除自建专家 |
+| `src/author.js` | 新建 / 编辑（含 skills）/ 从目录导入技能 / 回收站恢复 |
 | `src/routes.js` | `/expert-hub/*` 路由与 SSE |
 | `client.js` | 设置页 + 会话胶囊（浏览器半） |
 | `docs/CONTRACT.md` | Host/Client 接口契约 |

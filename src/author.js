@@ -14,8 +14,8 @@
  * @module dsh-expert-hub/author
  */
 
-import { mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { cp, mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises'
+import { basename, join } from 'node:path'
 
 import {
   ID_RE,
@@ -26,8 +26,9 @@ import {
   sanitizeRoleText,
   serializeExpertYml,
   slugify,
+  splitFrontmatter,
 } from './format.js'
-import { expertDirOf } from './paths.js'
+import { expertDirOf, expandHome } from './paths.js'
 import {
   deleteExpert,
   ensureExpertsRoot,
@@ -148,14 +149,22 @@ export function decodeDataUrl(dataUrl) {
  * @param {{ encoding?: 'utf8' }} [options]
  */
 async function writeAtomic(filePath, data, options = {}) {
-  const temp = `${filePath}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`
-  try {
-    await writeFile(temp, data, { mode: 0o600, ...options })
-    await rename(temp, filePath)
-  } catch (error) {
-    await rm(temp, { force: true }).catch(() => {})
-    throw error
+  let lastError
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const temp = `${filePath}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`
+    try {
+      await writeFile(temp, data, { mode: 0o600, ...options })
+      await rename(temp, filePath)
+      return
+    } catch (error) {
+      lastError = error
+      await rm(temp, { force: true }).catch(() => {})
+      // Windows may briefly lock a just-written/scanned file; retry a few times.
+      if (error?.code !== 'EPERM' && error?.code !== 'EBUSY' && error?.code !== 'EACCES') throw error
+      await new Promise((resolve) => setTimeout(resolve, 60 * (attempt + 1)))
+    }
   }
+  throw lastError
 }
 
 /** Create a free `<id>` directory (suffixing `-2`, `-3`, … on collision). */
@@ -287,8 +296,192 @@ export async function createExpert(input, paths) {
 }
 
 /**
- * Update an existing expert. Only metadata, `roleText` and the avatar can
- * change; `skills/` and provenance fields are preserved.
+ * Normalize an editable skill list (`[{ name, content }]`) into canonical
+ * skill names and sanitized bodies. Invalid names/content throw: the caller is
+ * an explicit form submission, not an import that can silently degrade.
+ *
+ * @param {unknown} value
+ * @returns {Array<{ name: string, content: string }>|null}
+ */
+export function normalizeSkillRows(value) {
+  if (!Array.isArray(value)) return null
+  const seen = new Set()
+  const rows = []
+  for (const raw of value) {
+    if (raw === null || typeof raw !== 'object') continue
+    const base = textOf(raw.name)
+    const name = ID_RE.test(base) ? base : slugify(base, 'skill')
+    const content = sanitizeRoleText(raw.content)
+    if (content === '') throw new Error(`技能 ${base || '(未命名)'} 的内容不能为空`)
+    if (seen.has(name)) throw new Error(`技能名重复：${name}`)
+    seen.add(name)
+    rows.push({ name, content })
+  }
+  return rows
+}
+
+/** Replace an expert's `skills/` tree with the given rows (SKILL.md bodies). */
+async function replaceSkills(dir, rows) {
+  const skillsDir = join(dir, 'skills')
+  await mkdir(skillsDir, { recursive: true })
+  const existing = await readdir(skillsDir, { withFileTypes: true }).catch(() => [])
+  const keep = new Set(rows.map((row) => row.name))
+  for (const entry of existing) {
+    if (!entry.isDirectory() || keep.has(entry.name)) continue
+    await rm(join(skillsDir, entry.name), { recursive: true, force: true })
+  }
+  for (const row of rows) {
+    const target = join(skillsDir, row.name)
+    await mkdir(target, { recursive: true })
+    await writeAtomic(join(target, 'SKILL.md'), `${row.content}\n`, { encoding: 'utf8' })
+  }
+}
+
+/** Read the skill name declared in a SKILL.md frontmatter, if any. */
+async function skillNameFromFile(file, fallback, useHeading = false) {
+  try {
+    const text = normalizeText(await readFile(file, 'utf8'))
+    const { fields, body } = splitFrontmatter(text)
+    const declared = textOf(fields.name)
+    if (declared !== '') return ID_RE.test(declared) ? declared : slugify(declared, 'skill')
+    if (useHeading === true) {
+      // A bare .md has no folder name to trust; use its first heading.
+      for (const line of body.split('\n')) {
+        const heading = /^#{1,6}[ \t]+(.+)$/.exec(line.trim())
+        if (heading === null) continue
+        const name = heading[1].trim()
+        if (name !== '') return ID_RE.test(name) ? name : slugify(name, 'skill')
+        break
+      }
+    }
+    return slugify(fallback, 'skill')
+  } catch {
+    return slugify(fallback, 'skill')
+  }
+}
+
+/**
+ * Import one skill (or every skill directly under a folder) into an existing
+ * expert. Accepts a skill directory with SKILL.md, a directory containing
+ * several skill directories, or a single `.md` file. Existing skill directories
+ * with the same name are replaced.
+ *
+ * @param {string} id expert id
+ * @param {string} sourcePath skill dir / skills parent / .md file, `~` allowed
+ * @param {object} paths
+ * @returns {Promise<object>} updated wire card
+ */
+export async function importSkillFromPath(id, sourcePath, paths) {
+  assertPaths(paths)
+  const folderId = typeof id === 'string' ? id.trim() : ''
+  if (!ID_RE.test(folderId)) throw new Error(`专家 id 不合法：${JSON.stringify(id)}`)
+  const raw = textOf(sourcePath)
+  if (raw === '') throw new Error('请提供技能目录或 .md 文件路径')
+  const source = expandHome(raw)
+  let info
+  try {
+    info = await stat(source)
+  } catch {
+    throw new Error(`路径不存在：${source}`)
+  }
+  const dir = expertDirOf(paths.expertsRoot, folderId)
+  const skillsDir = join(dir, 'skills')
+  await mkdir(skillsDir, { recursive: true })
+  const imported = []
+
+  const importOne = async (name, fromDir) => {
+    const target = join(skillsDir, name)
+    await rm(target, { recursive: true, force: true })
+    await cp(fromDir, target, { recursive: true, dereference: true, errorOnExist: false })
+    imported.push(name)
+  }
+
+  if (info.isFile()) {
+    if (!source.toLowerCase().endsWith('.md')) throw new Error('单个文件只支持 .md')
+    const name = await skillNameFromFile(source, basename(source, '.md'), true)
+    const content = await readFile(source, 'utf8')
+    const targetDir = join(skillsDir, name)
+    await mkdir(targetDir, { recursive: true })
+    await writeAtomic(join(targetDir, 'SKILL.md'), `${normalizeText(content)}\n`, { encoding: 'utf8' })
+    imported.push(name)
+  } else if (info.isDirectory()) {
+    const direct = join(source, 'SKILL.md')
+    try {
+      await stat(direct)
+      await importOne(await skillNameFromFile(direct, basename(source)), source)
+    } catch {
+      const entries = await readdir(source, { withFileTypes: true })
+      for (const entry of entries) {
+        if (!entry.isDirectory() || entry.name.startsWith('.')) continue
+        const skillFile = join(source, entry.name, 'SKILL.md')
+        try {
+          await stat(skillFile)
+        } catch {
+          continue
+        }
+        await importOne(await skillNameFromFile(skillFile, entry.name), join(source, entry.name))
+      }
+    }
+  } else {
+    throw new Error('路径不是文件或目录')
+  }
+  if (imported.length === 0) throw new Error('来源里没有找到 SKILL.md')
+  return (await readInstalledDetail(paths, folderId)).card
+}
+
+/** List soft-deleted experts kept in `$DSH_HOME/expert-hub/trash`. */
+export async function listTrash(paths) {
+  assertPaths(paths)
+  const trashRoot = join(paths.stateDir, 'trash')
+  const entries = await readdir(trashRoot, { withFileTypes: true }).catch(() => [])
+  const items = []
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue
+    const dir = join(trashRoot, entry.name)
+    const deletedAt = /-(\d{4}-\d{2}-\d{2}T[\d-]+Z)$/.exec(entry.name)?.[1] ?? ''
+    let id = entry.name.replace(/-(\d{4}-\d{2}-\d{2}T[\d-]+Z)$/, '')
+    let displayName = id
+    try {
+      const fields = expertFromYmlFields(parseExpertYml(await readFile(join(dir, 'expert.yml'), 'utf8')))
+      if (ID_RE.test(fields.id)) id = fields.id
+      displayName = fields.displayName || id
+    } catch {
+      // Broken trash entry: keep the derived name so it can still be restored.
+    }
+    items.push({ name: entry.name, id, displayName, deletedAt })
+  }
+  items.sort((a, b) => (a.deletedAt < b.deletedAt ? 1 : -1))
+  return items
+}
+
+/** Restore one trashed expert folder by its trash entry name. */
+export async function restoreTrash(paths, name) {
+  assertPaths(paths)
+  const entry = textOf(name)
+  if (entry === '' || entry.includes('..') || /[\\/]/.test(entry)) throw new Error('回收站条目名不合法')
+  const source = join(paths.stateDir, 'trash', entry)
+  let fields
+  try {
+    fields = expertFromYmlFields(parseExpertYml(await readFile(join(source, 'expert.yml'), 'utf8')))
+  } catch {
+    throw new Error('回收站条目已损坏，无法恢复')
+  }
+  if (!ID_RE.test(fields.id)) throw new Error('回收站条目缺少合法 id，无法恢复')
+  const target = expertDirOf(paths.expertsRoot, fields.id)
+  try {
+    await stat(target)
+    throw new Error(`专家 ${fields.id} 已存在，不能覆盖恢复`)
+  } catch (error) {
+    if (error?.message?.includes('已存在')) throw error
+  }
+  await mkdir(paths.expertsRoot, { recursive: true })
+  await rename(source, target)
+  return (await readInstalledDetail(paths, fields.id)).card
+}
+
+/**
+ * Update an existing expert. Metadata, `roleText`, the avatar and (optionally)
+ * the whole skills tree can change; provenance fields are preserved.
  *
  * @param {string} id
  * @param {object} patch
@@ -371,6 +564,12 @@ export async function updateExpert(id, patch, paths) {
     const avatarName = `avatar${nextAvatar.ext}`
     await writeFile(join(dir, avatarName), nextAvatar.data, { mode: 0o600 })
     await removeAvatarFiles(dir, avatarName)
+  }
+
+  if (p.skills !== undefined) {
+    const rows = normalizeSkillRows(p.skills)
+    if (rows === null) throw new Error('skills 必须是数组')
+    await replaceSkills(dir, rows)
   }
 
   const detail = await readInstalledDetail(paths, folderId)

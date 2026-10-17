@@ -16,6 +16,9 @@ import {
   createExpert,
   decodeDataUrl,
   deleteExpertCard,
+  importSkillFromPath,
+  listTrash,
+  restoreTrash,
   updateExpert,
 } from '../src/author.js'
 import { createPaths } from '../src/paths.js'
@@ -327,4 +330,110 @@ test('decodeDataUrl 拒绝非法输入', async () => {
 
   // 空数据 URL 的 base64 体
   assert.throws(() => decodeDataUrl('data:image/png;base64,'), /AVATAR_EMPTY/)
+})
+
+// ---------------------------------------------------------------------------
+// skills editing + import
+// ---------------------------------------------------------------------------
+
+test('updateExpert 替换 skills 树（新增/删除）', async () => {
+  const ctx = await makeContext()
+  try {
+    const card = await createExpert({ displayName: 'Skill Owner', roleText: '角色' }, ctx.paths)
+    await updateExpert(card.id, { skills: [{ name: 'alpha', content: '# Alpha\n\nA.' }] }, ctx.paths)
+    let detail = await readInstalledDetail(ctx.paths, card.id)
+    assert.deepEqual(detail.skills.map((skill) => skill.name), ['alpha'])
+    assert.match(detail.skills[0].content, /Alpha/)
+
+    await updateExpert(card.id, {
+      skills: [
+        { name: 'alpha', content: '# Alpha v2\n\nB.' },
+        { name: 'beta', content: '# Beta\n\nC.' },
+      ],
+    }, ctx.paths)
+    detail = await readInstalledDetail(ctx.paths, card.id)
+    assert.deepEqual(detail.skills.map((skill) => skill.name).sort(), ['alpha', 'beta'])
+    assert.match(detail.skills.find((skill) => skill.name === 'alpha').content, /Alpha v2/)
+
+    await updateExpert(card.id, { skills: [] }, ctx.paths)
+    detail = await readInstalledDetail(ctx.paths, card.id)
+    assert.equal(detail.skills.length, 0)
+  } finally {
+    await ctx.cleanup()
+  }
+})
+
+test('importSkillFromPath 支持技能目录、多个技能目录和单个 .md', async () => {
+  const ctx = await makeContext()
+  const source = await mkdtemp(join(tmpdir(), 'expert-hub-skill-'))
+  try {
+    const card = await createExpert({ displayName: 'Skill Importer', roleText: '角色' }, ctx.paths)
+
+    // 单个技能目录（SKILL.md 自带 name）。
+    const one = join(source, 'my-skill')
+    await mkdir(one, { recursive: true })
+    await writeFile(join(one, 'SKILL.md'), '---\nname: from-frontmatter\n---\n\n# Content\n', 'utf8')
+    await writeFile(join(one, 'notes.txt'), 'resource', 'utf8')
+    await importSkillFromPath(card.id, one, ctx.paths)
+    let detail = await readInstalledDetail(ctx.paths, card.id)
+    assert.ok(detail.skills.some((skill) => skill.name === 'from-frontmatter'))
+
+    // 父目录里有两个技能目录。
+    const parent = join(source, 'bundle')
+    await mkdir(join(parent, 'skill-a'), { recursive: true })
+    await mkdir(join(parent, 'skill-b'), { recursive: true })
+    await writeFile(join(parent, 'skill-a', 'SKILL.md'), '# A\n', 'utf8')
+    await writeFile(join(parent, 'skill-b', 'SKILL.md'), '# B\n', 'utf8')
+    await importSkillFromPath(card.id, parent, ctx.paths)
+    detail = await readInstalledDetail(ctx.paths, card.id)
+    assert.ok(detail.skills.some((skill) => skill.name === 'skill-a'))
+    assert.ok(detail.skills.some((skill) => skill.name === 'skill-b'))
+
+    // 单个 .md 文件。
+    const md = join(source, 'single.md')
+    await writeFile(md, '---\nname: single-skill\n---\n\n# Single\n', 'utf8')
+    await importSkillFromPath(card.id, md, ctx.paths)
+    detail = await readInstalledDetail(ctx.paths, card.id)
+    assert.ok(detail.skills.some((skill) => skill.name === 'single-skill'))
+
+    await assert.rejects(() => importSkillFromPath(card.id, join(source, 'missing'), ctx.paths), /路径不存在/)
+  } finally {
+    await ctx.cleanup()
+    await rm(source, { recursive: true, force: true })
+  }
+})
+
+// ---------------------------------------------------------------------------
+// trash list + restore
+// ---------------------------------------------------------------------------
+
+test('listTrash/restoreTrash 软删除后可恢复', async () => {
+  const ctx = await makeContext()
+  try {
+    const card = await createExpert({ displayName: 'Restore Me', roleText: '角色' }, ctx.paths)
+    await deleteExpertCard(card.id, ctx.paths)
+    assert.equal((await scanInstalled(ctx.paths)).cards.length, 0)
+
+    const trash = await listTrash(ctx.paths)
+    assert.equal(trash.length, 1)
+    assert.equal(trash[0].id, card.id)
+    assert.equal(trash[0].displayName, 'Restore Me')
+    assert.ok(trash[0].deletedAt.length > 0)
+
+    const restored = await restoreTrash(ctx.paths, trash[0].name)
+    assert.equal(restored.id, card.id)
+    assert.equal((await scanInstalled(ctx.paths)).cards.length, 1)
+    assert.equal((await listTrash(ctx.paths)).length, 0)
+
+    // 同名目录已存在时拒绝覆盖。
+    const again = await createExpert({ displayName: 'Restore Me', roleText: '角色2' }, ctx.paths)
+    await deleteExpertCard(again.id, ctx.paths)
+    const trash2 = await listTrash(ctx.paths)
+    await createExpert({ displayName: 'Placeholder', roleText: 'x', id: again.id }, ctx.paths)
+    const entry = trash2.find((item) => item.id === again.id)
+    if (entry !== undefined) await assert.rejects(() => restoreTrash(ctx.paths, entry.name), /已存在/)
+    await assert.rejects(() => restoreTrash(ctx.paths, '../evil'), /不合法/)
+  } finally {
+    await ctx.cleanup()
+  }
 })

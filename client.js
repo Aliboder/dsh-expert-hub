@@ -285,6 +285,15 @@ window.__ModuleLoader__.load({
   overflow-wrap: anywhere; color: var(--dsw-alias-label-secondary, inherit);
   background: var(--dsw-alias-bg-layer-2, rgba(127,127,127,.08));
   border: 1px dashed var(--dsw-alias-border-l2, rgba(127,127,127,.28)); }
+.eh-skill-list { display: flex; flex-direction: column; gap: 10px; }
+.eh-skill-row { display: flex; flex-direction: column; gap: 6px; padding: 8px;
+  border: 1px solid var(--dsw-alias-border-l1, rgba(127,127,127,.22)); border-radius: 9px; }
+.eh-trash-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.eh-trash-item { display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 8px 2px; border-top: 1px solid var(--dsw-alias-border-l1, rgba(127,127,127,.22)); }
+.eh-trash-item:first-child { border-top: 0; }
+.eh-trash-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.eh-trash-name { font-size: 13px; font-weight: 500; color: var(--dsw-alias-label-primary, inherit); }
 
 /* ── 遮罩 / 抽屉 / 对话框 ─────────────────────────────────────────────── */
 .eh-overlay { position: fixed; inset: 0; z-index: 1000; display: flex;
@@ -619,6 +628,26 @@ window.__ModuleLoader__.load({
         'edit.loadFailed': '读取专家信息失败',
         'edit.roleHint': '修改后覆盖 role.md；清空则保持原角色提示词不变。',
         'edit.avatarKeep': '不选择则保留当前头像。',
+        'edit.skillsTitle': '技能（skills）',
+        'edit.skillsHint': '每个技能写入 skills/<name>/SKILL.md；改名会重建目录（原资源文件会丢失）。',
+        'edit.skillsEmpty': '这个专家还没有技能，可以手动添加或从目录导入。',
+        'edit.skillNamePlaceholder': 'skill 名称（kebab-case）',
+        'edit.skillContentPlaceholder': 'SKILL.md 内容（Markdown）',
+        'edit.addSkill': '添加技能',
+        'edit.skillInvalid': '技能名和内容都不能为空。',
+        'edit.skillPathPlaceholder': '技能目录 / 包含多个技能的父目录 / 单个 .md 路径',
+        'edit.skillImport': '从目录导入技能',
+        'edit.skillImporting': '导入中…',
+        'edit.skillImported': '技能已导入',
+        'edit.skillImportFailed': '导入技能失败：{message}',
+        'trash.title': '回收站',
+        'trash.hint': '删除的专家会先移到这里，可随时恢复。',
+        'trash.restore': '恢复',
+        'trash.restoring': '恢复中…',
+        'trash.deletedAt': '删除于 {time}',
+        'trash.empty': '回收站是空的。',
+        'trash.restored': '已恢复「{name}」',
+        'trash.restoreFailed': '恢复失败：{message}',
 
         'capsule.label': '专家',
         'capsule.title': '切换当前会话的专家',
@@ -792,6 +821,26 @@ window.__ModuleLoader__.load({
         'edit.loadFailed': 'Failed to load expert data',
         'edit.roleHint': 'Replaces role.md when changed; leave empty to keep the current role prompt.',
         'edit.avatarKeep': 'Leaves the current avatar unchanged when empty.',
+        'edit.skillsTitle': 'Skills',
+        'edit.skillsHint': 'Each skill becomes skills/<name>/SKILL.md; renaming rebuilds the folder (extra resource files are lost).',
+        'edit.skillsEmpty': 'This expert has no skills yet — add one or import from a folder.',
+        'edit.skillNamePlaceholder': 'skill name (kebab-case)',
+        'edit.skillContentPlaceholder': 'SKILL.md content (Markdown)',
+        'edit.addSkill': 'Add skill',
+        'edit.skillInvalid': 'A skill needs both a name and content.',
+        'edit.skillPathPlaceholder': 'Skill folder / parent of several skills / single .md path',
+        'edit.skillImport': 'Import skill from path',
+        'edit.skillImporting': 'Importing…',
+        'edit.skillImported': 'Skill imported',
+        'edit.skillImportFailed': 'Skill import failed: {message}',
+        'trash.title': 'Trash',
+        'trash.hint': 'Deleted experts are moved here first and can be restored.',
+        'trash.restore': 'Restore',
+        'trash.restoring': 'Restoring…',
+        'trash.deletedAt': 'Deleted {time}',
+        'trash.empty': 'Trash is empty.',
+        'trash.restored': 'Restored “{name}”',
+        'trash.restoreFailed': 'Restore failed: {message}',
 
         'capsule.label': 'Expert',
         'capsule.title': 'Switch the expert for this session',
@@ -1960,6 +2009,18 @@ window.__ModuleLoader__.load({
       var savingState = React.useState(false)
       var saving = savingState[0]
       var setSaving = savingState[1]
+      var skillsState = React.useState([])
+      var skills = skillsState[0]
+      var setSkills = skillsState[1]
+      var skillPathState = React.useState('')
+      var skillPath = skillPathState[0]
+      var setSkillPath = skillPathState[1]
+      var skillBusyState = React.useState(false)
+      var skillBusy = skillBusyState[0]
+      var setSkillBusy = skillBusyState[1]
+      var skillNoticeState = React.useState('')
+      var skillNotice = skillNoticeState[0]
+      var setSkillNotice = skillNoticeState[1]
 
       function load () {
         setPhase('loading')
@@ -1977,6 +2038,15 @@ window.__ModuleLoader__.load({
             quickPrompts: listOfStrings(actual.quickPrompts).join('\n'),
             roleText: payload !== null && typeof payload.roleText === 'string' ? payload.roleText : ''
           })
+          var loadedSkills = []
+          var rawSkills = payload !== null && Array.isArray(payload.skills) ? payload.skills : []
+          for (var i = 0; i < rawSkills.length; i++) {
+            loadedSkills.push({
+              name: strOf(rawSkills[i] && rawSkills[i].name),
+              content: rawSkills[i] !== null && typeof rawSkills[i].content === 'string' ? rawSkills[i].content : ''
+            })
+          }
+          setSkills(loadedSkills)
           setPhase('ready')
           return payload
         }, function (err) {
@@ -2012,6 +2082,48 @@ window.__ModuleLoader__.load({
         })
       }
 
+      function changeSkill (index, field, value) {
+        setSkills(function (previous) {
+          var next = previous.slice()
+          var row = Object.assign({}, next[index])
+          row[field] = value
+          next[index] = row
+          return next
+        })
+        if (formError !== '') setFormError('')
+      }
+
+      function addSkillRow () {
+        setSkills(function (previous) { return previous.concat([{ name: '', content: '' }]) })
+      }
+
+      function removeSkillRow (index) {
+        setSkills(function (previous) {
+          return previous.filter(function (_row, at) { return at !== index })
+        })
+      }
+
+      function importSkill () {
+        if (skillBusy || saving) return
+        var rawPath = strOf(skillPath)
+        setSkillNotice('')
+        if (rawPath === '') {
+          setSkillNotice(t('edit.skillImportFailed', { message: t('import.emptyPath') }))
+          return
+        }
+        setSkillBusy(true)
+        postJson(API_BASE + '/skill-import', { id: cardId, path: rawPath }).then(function () {
+          setSkillNotice(t('edit.skillImported'))
+          setSkillPath('')
+          return load()
+        }, function (err) {
+          setSkillNotice(t('edit.skillImportFailed', { message: errorOf(err) }))
+          return null
+        }).then(function () {
+          setSkillBusy(false)
+        })
+      }
+
       function submit () {
         if (saving || values === null) return
         setFormError('')
@@ -2032,6 +2144,19 @@ window.__ModuleLoader__.load({
           tags: parseTags(values.tags),
           quickPrompts: parseLines(values.quickPrompts, 6)
         }
+        var skillRows = []
+        for (var si = 0; si < skills.length; si++) {
+          var row = skills[si] !== null && typeof skills[si] === 'object' ? skills[si] : {}
+          var skillName = strOf(row.name)
+          var skillContent = typeof row.content === 'string' ? row.content : ''
+          if (skillName === '' && strOf(skillContent) === '') continue
+          if (skillName === '' || strOf(skillContent) === '') {
+            setFormError(t('edit.skillInvalid'))
+            return
+          }
+          skillRows.push({ name: skillName, content: skillContent })
+        }
+        payload.skills = skillRows
         var roleText = values.roleText
         if (strOf(roleText) !== '') payload.roleText = roleText
         if (avatarDataUrl !== '') payload.avatarDataUrl = avatarDataUrl
@@ -2055,6 +2180,61 @@ window.__ModuleLoader__.load({
       }
 
       var previewUrl = avatarDataUrl !== '' ? avatarDataUrl : strOf(card.avatarUrl)
+      var skillNodes = []
+      for (var si2 = 0; si2 < skills.length; si2++) {
+        var skillRow = skills[si2] !== null && typeof skills[si2] === 'object' ? skills[si2] : {}
+        skillNodes.push(el('div', { className: 'eh-skill-row', key: 'skill:' + si2 },
+          el('div', { className: 'eh-form-row' },
+            el('input', {
+              className: 'eh-input',
+              type: 'text',
+              value: skillRow.name !== undefined ? skillRow.name : '',
+              placeholder: t('edit.skillNamePlaceholder'),
+              onChange: (function (at) {
+                return function (event) { changeSkill(at, 'name', event.target.value) }
+              })(si2)
+            }),
+            el('button', {
+              className: 'eh-btn eh-btn-sm', type: 'button', 'data-variant': 'danger',
+              onClick: (function (at) {
+                return function () { removeSkillRow(at) }
+              })(si2)
+            }, t('page.delete'))),
+          el('textarea', {
+            className: 'eh-textarea',
+            rows: 4,
+            value: skillRow.content !== undefined ? skillRow.content : '',
+            placeholder: t('edit.skillContentPlaceholder'),
+            onChange: (function (at) {
+              return function (event) { changeSkill(at, 'content', event.target.value) }
+            })(si2)
+          })))
+      }
+      var skillsView = el('div', { className: 'eh-panel-card' },
+        el('h3', { className: 'eh-card-title' }, t('edit.skillsTitle')),
+        el('p', { className: 'eh-hint' }, t('edit.skillsHint')),
+        skills.length === 0 ? el('p', { className: 'eh-hint' }, t('edit.skillsEmpty')) : null,
+        skillNodes.length > 0 ? el('div', { className: 'eh-skill-list' }, skillNodes) : null,
+        el('div', { className: 'eh-form-actions' },
+          el('button', { className: 'eh-btn eh-btn-sm', type: 'button', onClick: addSkillRow }, t('edit.addSkill'))),
+        el('div', { className: 'eh-field' },
+          el('label', { className: 'eh-label' }, t('edit.skillImport')),
+          el('input', {
+            className: 'eh-input',
+            type: 'text',
+            value: skillPath,
+            placeholder: t('edit.skillPathPlaceholder'),
+            onChange: function (event) { setSkillPath(event.target.value) }
+          })),
+        el('div', { className: 'eh-form-actions' },
+          el('button', {
+            className: 'eh-btn', type: 'button',
+            disabled: skillBusy,
+            onClick: importSkill
+          },
+            skillBusy ? el('span', { className: 'eh-spin', 'aria-hidden': 'true' }) : null,
+            skillBusy ? t('edit.skillImporting') : t('edit.skillImport'))),
+        skillNotice !== '' ? el('p', { className: 'eh-hint' }, skillNotice) : null)
       return el(Overlay, {
         t: t,
         title: t('edit.title'),
@@ -2086,7 +2266,8 @@ window.__ModuleLoader__.load({
           avatarHint: t('edit.avatarKeep'),
           onAvatarFile: onAvatarFile
         }),
-        formError !== '' ? el('p', { className: 'eh-form-error', role: 'alert' }, formError) : null)
+        formError !== '' ? el('p', { className: 'eh-form-error', role: 'alert' }, formError) : null,
+        skillsView)
     }
 
     // ── 新建表单 ───────────────────────────────────────────────────────────
@@ -2518,6 +2699,12 @@ window.__ModuleLoader__.load({
       var confirmState = React.useState('')
       var confirmKey = confirmState[0]
       var setConfirmKey = confirmState[1]
+      var trashState = React.useState(null)
+      var trash = trashState[0]
+      var setTrash = trashState[1]
+      var trashBusyState = React.useState('')
+      var trashBusy = trashBusyState[0]
+      var setTrashBusy = trashBusyState[1]
 
       function pull () {
         return fetchState(sessionId).then(function (payload) {
@@ -2530,7 +2717,17 @@ window.__ModuleLoader__.load({
         })
       }
 
-      React.useEffect(function () { pull() }, [sessionId])
+      function loadTrash () {
+        return api(API_BASE + '/trash').then(function (payload) {
+          setTrash(arrOf(payload !== null && payload !== undefined ? payload.items : null))
+          return payload
+        }, function () {
+          setTrash([])
+          return null
+        })
+      }
+
+      React.useEffect(function () { pull(); loadTrash() }, [sessionId])
 
       React.useEffect(function () {
         if (bus === null || bus === undefined || typeof bus.subscribe !== 'function') return undefined
@@ -2682,10 +2879,26 @@ window.__ModuleLoader__.load({
           setNotice({ kind: 'ok', text: t('installed.deleteDone', { name: nameOf(card) }) })
           if (detail !== null && detail.card !== null && detail.card !== undefined &&
             strOf(detail.card.id) === id) setDetail(null)
-          return pull()
+          return Promise.all([pull(), loadTrash()])
         }, function (err) {
           failNotice('installed.actionFailed', err)
         }).then(function () { setBusy('') })
+      }
+
+      function restoreEntry (item) {
+        if (item === null || item === undefined) return
+        if (trashBusy !== '' || laneBusy) return
+        var name = strOf(item.name)
+        if (name === '') return
+        setTrashBusy(name)
+        setNotice(null)
+        postJson(API_BASE + '/restore-trash', { name: name }).then(function (result) {
+          var restored = result !== null && result !== undefined ? result.expert : null
+          setNotice({ kind: 'ok', text: t('trash.restored', { name: nameOf(restored) || strOf(item.displayName) || name }) })
+          return Promise.all([pull(), loadTrash()])
+        }, function (err) {
+          failNotice('trash.restoreFailed', err)
+        }).then(function () { setTrashBusy('') })
       }
 
       function useInSession (card) {
@@ -2836,6 +3049,31 @@ window.__ModuleLoader__.load({
         return el('ul', { className: 'eh-grid' }, items)
       }
 
+      var trashView = null
+      if (trash !== null && trash.length > 0) {
+        var trashItems = []
+        for (var ti2 = 0; ti2 < trash.length; ti2++) {
+          var trashItem = trash[ti2] !== null && typeof trash[ti2] === 'object' ? trash[ti2] : {}
+          var trashName = strOf(trashItem.name)
+          var deletedAt = strOf(trashItem.deletedAt).replace('T', ' ').replace('Z', '')
+          trashItems.push(el('li', { className: 'eh-trash-item', key: 'trash:' + trashName },
+            el('div', { className: 'eh-trash-main' },
+              el('span', { className: 'eh-trash-name' }, strOf(trashItem.displayName) || strOf(trashItem.id) || trashName),
+              el('span', { className: 'eh-hint' }, t('trash.deletedAt', { time: deletedAt }))),
+            el('button', {
+              className: 'eh-btn eh-btn-sm', type: 'button',
+              disabled: trashBusy !== '',
+              onClick: (function (item) {
+                return function () { restoreEntry(item) }
+              })(trashItem)
+            }, trashBusy === trashName ? t('trash.restoring') : t('trash.restore'))))
+        }
+        trashView = el('section', { className: 'eh-panel-card' },
+          el('h3', { className: 'eh-card-title' }, t('trash.title') + '（' + trash.length + '）'),
+          el('p', { className: 'eh-hint' }, t('trash.hint')),
+          el('ul', { className: 'eh-trash-list' }, trashItems))
+      }
+
       var installedPanel = el('section', {
         className: 'eh-panel',
         role: 'tabpanel',
@@ -2861,7 +3099,8 @@ window.__ModuleLoader__.load({
           filteredInstalled, 'installed',
           t('installed.emptyTitle'), t('installed.emptyTip'), t('installed.emptyAction'),
           function () { switchTab('market') },
-          t('installed.noMatchTitle'), t('installed.noMatchTip')))
+          t('installed.noMatchTitle'), t('installed.noMatchTip')),
+        trashView)
 
       var marketPanel = el('section', {
         className: 'eh-panel',

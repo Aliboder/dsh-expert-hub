@@ -297,6 +297,11 @@ export function createRoutes({ paths, switcher, selections, ensureApplied, diagn
       await avatarOf(req, res)
       return
     }
+    if (method === 'GET' && path === '/trash') {
+      const author = await import('./author.js')
+      sendJson(res, 200, { ok: true, items: await author.listTrash(paths) })
+      return
+    }
     if (method === 'GET' && path === '/events') {
       const client = openSse(res)
       clients.add(client)
@@ -334,6 +339,22 @@ export function createRoutes({ paths, switcher, selections, ensureApplied, diagn
       const core = await snapshot()
       bump()
       sendJson(res, 200, { ok: true, revision: runtime.revision, counts: core.counts })
+      return
+    }
+    if (path === '/restore-trash') {
+      const author = await import('./author.js')
+      const body = await readJsonBody(req, BODY_CAP)
+      const expert = await author.restoreTrash(paths, body.name)
+      bump()
+      sendJson(res, 200, { ok: true, expert })
+      return
+    }
+    if (path === '/skill-import') {
+      const author = await import('./author.js')
+      const body = await readJsonBody(req, BODY_CAP_LARGE)
+      const expert = await author.importSkillFromPath(body.id, body.path, paths)
+      bump()
+      sendJson(res, 200, { ok: true, expert })
       return
     }
     if (path === '/import') {
