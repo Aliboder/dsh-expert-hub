@@ -68,10 +68,50 @@ function fail(res, error) {
  * @param {object} options.selections
  * @param {{warn?: (message: string) => void}} [options.logger]
  */
-export function createRoutes({ paths, switcher, selections, ensureApplied, diagnostics, logger = {} }) {
+export function createRoutes({ paths, switcher, selections, resolveProjectPaths, ensureApplied, diagnostics, logger = {} }) {
   const warn = logger.warn ?? (() => {})
   const clients = new Set()
   const runtime = { revision: 1, cache: undefined, cacheAt: 0 }
+
+  /** Normalize a client-provided library name. */
+  function libraryOf(value) {
+    return value === 'project' ? 'project' : 'global'
+  }
+
+  /** Storage paths for one request's library, resolving the session project. */
+  async function scopedPathsFor(library, sessionId) {
+    if (library !== 'project') return paths
+    if (typeof resolveProjectPaths !== 'function') throw new HttpError(400, 'NO_PROJECT_SUPPORT', '当前环境不支持项目级专家')
+    const scoped = await resolveProjectPaths(sessionId)
+    if (scoped === undefined || scoped === null) {
+      throw new HttpError(400, 'NO_PROJECT', '当前会话没有项目目录，无法使用项目级专家')
+    }
+    return scoped
+  }
+
+  /** Add library/session info to cards so avatar requests can resolve the right root. */
+  function decorateCards(cards, library, sessionId) {
+    if (library !== 'project') return cards
+    return cards.map((card) => ({
+      ...card,
+      library,
+      avatarUrl: card.avatarUrl === ''
+        ? ''
+        : `${card.avatarUrl}${card.avatarUrl.includes('?') ? '&' : '?'}sessionId=${encodeURIComponent(sessionId)}`,
+    }))
+  }
+
+  /** Snapshot of the current session's project library (empty without a project). */
+  async function projectSnapshot(sessionId) {
+    const scoped = await scopedPathsFor('project', sessionId).catch(() => undefined)
+    if (scoped === undefined) return { cards: [], warnings: [], projectRoot: '' }
+    const state = await installedState(scoped)
+    return {
+      cards: decorateCards(state.cards, 'project', sessionId),
+      warnings: state.warnings,
+      projectRoot: scoped.projectRoot,
+    }
+  }
 
   /** Notify every SSE client and invalidate the snapshot cache. */
   function bump() {
@@ -115,8 +155,9 @@ export function createRoutes({ paths, switcher, selections, ensureApplied, diagn
   }
 
   /** Serialize one expert detail payload for the client. */
-  async function detailOf(id, scope) {
+  async function detailOf(id, scope, library = 'global', sessionId = '') {
     if (!ID_RE.test(String(id ?? ''))) throw new HttpError(400, 'INVALID_ID', '专家 id 不合法')
+    const kind = libraryOf(library)
     if (scope === 'workbuddy') {
       const draft = await readAvailableDraft(paths, id)
       const installed = await installedState(paths)
@@ -133,8 +174,10 @@ export function createRoutes({ paths, switcher, selections, ensureApplied, diagn
         meta: { sourcePath: '', agentFile: draft.origin?.agentFile ?? '' },
       }
     }
-    const detail = await readInstalledDetail(paths, id)
-    return { ok: true, ...detail }
+    const scoped = await scopedPathsFor(kind, sessionId)
+    const detail = await readInstalledDetail(scoped, id)
+    const [card] = decorateCards([detail.card], kind, sessionId)
+    return { ok: true, ...detail, card, library: kind }
   }
 
   /** Stream one avatar image, 404 for anything unresolvable. */
@@ -142,9 +185,12 @@ export function createRoutes({ paths, switcher, selections, ensureApplied, diagn
     const query = queryOf(req)
     const id = query.get('id') ?? ''
     const scope = query.get('scope') ?? 'installed'
+    const library = libraryOf(query.get('library') ?? 'global')
+    const sessionId = query.get('sessionId') ?? ''
+    const storePaths = await scopedPathsFor(library, sessionId).catch(() => undefined)
     const file = scope === 'workbuddy'
       ? (await readAvailableDraft(paths, id).catch(() => undefined))?.avatar ?? null
-      : await avatarFileOf(paths, id).catch(() => null)
+      : storePaths === undefined ? null : await avatarFileOf(storePaths, id).catch(() => null)
     if (file === null || file === undefined) {
       sendError(res, 404, 'NOT_FOUND', '没有头像')
       return
@@ -167,15 +213,17 @@ export function createRoutes({ paths, switcher, selections, ensureApplied, diagn
   /** POST /import — copy WorkBuddy experts into the library. */
   async function handleImport(req, res) {
     const body = await readJsonBody(req, BODY_CAP)
+    const library = libraryOf(body.library ?? 'global')
+    const scoped = await scopedPathsFor(library, body.sessionId ?? '')
     const ids = Array.isArray(body.ids) ? body.ids.filter((id) => ID_RE.test(String(id))).slice(0, MAX_IMPORT_IDS) : []
     if (ids.length === 0) throw new HttpError(400, 'NO_IDS', '没有要导入的专家')
     const imported = []
     const failed = []
-    const installedNow = await installedState(paths)
+    const installedNow = await installedState(scoped)
     for (const id of ids) {
       try {
         const draft = await readAvailableDraft(paths, id)
-        imported.push(await installDraft(draft, paths, { update: installedNow.ids.has(id) }))
+        imported.push(await installDraft(draft, scoped, { update: installedNow.ids.has(id) }))
       } catch (error) {
         failed.push({ id, error: messageOf(error) })
       }
@@ -187,6 +235,8 @@ export function createRoutes({ paths, switcher, selections, ensureApplied, diagn
   /** POST /import-web | /import-path — install experts from a URL or folder. */
   async function handleSourceImport(req, res, kind) {
     const body = await readJsonBody(req, BODY_CAP_LARGE)
+    const library = libraryOf(body.library ?? 'global')
+    const scoped = await scopedPathsFor(library, body.sessionId ?? '')
     const source = kind === 'web' ? body.url : body.path
     if (typeof source !== 'string' || source.trim() === '') {
       throw new HttpError(400, 'NO_SOURCE', kind === 'web' ? '请填写专家包网址' : '请填写本机目录或 .md 文件路径')
@@ -212,9 +262,9 @@ export function createRoutes({ paths, switcher, selections, ensureApplied, diagn
     try {
       for (const draft of drafts) {
         try {
-          const installed = await installDraft(draft, paths)
+          const installed = await installDraft(draft, scoped)
           imported.push(installed)
-          experts.push((await readInstalledDetail(paths, installed.id)).card)
+          experts.push((await readInstalledDetail(scoped, installed.id)).card)
         } catch (error) {
           failed.push({ id: draft.id, error: messageOf(error) })
         }
@@ -241,21 +291,23 @@ export function createRoutes({ paths, switcher, selections, ensureApplied, diagn
       throw new HttpError(501, 'AUTHOR_UNAVAILABLE', `创建/编辑模块不可用：${messageOf(error)}`)
     }
     const body = await readJsonBody(req, BODY_CAP_LARGE)
+    const library = libraryOf(body.library ?? body.scope ?? 'global')
+    const scoped = await scopedPathsFor(library, body.sessionId ?? '')
     if (action === 'create') {
       const input = { ...(body.expert ?? {}), avatarDataUrl: body.avatarDataUrl }
-      const expert = await author.createExpert(input, paths)
+      const expert = await author.createExpert(input, scoped)
       bump()
-      sendJson(res, 200, { ok: true, expert })
+      sendJson(res, 200, { ok: true, expert: { ...expert, library } })
       return
     }
     if (action === 'update') {
       const patch = { ...(body.patch ?? {}), roleText: body.roleText, avatarDataUrl: body.avatarDataUrl }
-      const expert = await author.updateExpert(body.id, patch, paths)
+      const expert = await author.updateExpert(body.id, patch, scoped)
       bump()
-      sendJson(res, 200, { ok: true, expert })
+      sendJson(res, 200, { ok: true, expert: { ...expert, library } })
       return
     }
-    await author.deleteExpertCard(body.id, paths)
+    await author.deleteExpertCard(body.id, scoped)
     switcher.forget(String(body.id ?? ''))
     bump()
     sendJson(res, 200, { ok: true })
@@ -281,16 +333,32 @@ export function createRoutes({ paths, switcher, selections, ensureApplied, diagn
         void Promise.resolve(ensureApplied(sessionId)).catch(() => {})
       }
       const core = await snapshot()
+      const project = typeof sessionId === 'string' && sessionId !== ''
+        ? await projectSnapshot(sessionId)
+        : { cards: [], warnings: [], projectRoot: '' }
       sendJson(res, 200, {
         ok: true,
         revision: runtime.revision,
         ...core,
+        installed: decorateCards(core.installed, 'global', ''),
+        project: project.cards,
+        projectRoot: project.projectRoot,
+        warnings: [...(core.warnings ?? []), ...(project.warnings ?? [])],
+        counts: {
+          ...core.counts,
+          project: project.cards.filter((card) => card.broken === undefined).length,
+        },
         session: typeof sessionId === 'string' && sessionId !== '' ? switcher.current(sessionId) : undefined,
       })
       return
     }
     if (method === 'GET' && path === '/detail') {
-      sendJson(res, 200, await detailOf(url.searchParams.get('id') ?? '', url.searchParams.get('scope') ?? 'installed'))
+      sendJson(res, 200, await detailOf(
+        url.searchParams.get('id') ?? '',
+        url.searchParams.get('scope') ?? 'installed',
+        url.searchParams.get('library') ?? 'global',
+        url.searchParams.get('sessionId') ?? '',
+      ))
       return
     }
     if (method === 'GET' && path === '/avatar') {
@@ -299,7 +367,10 @@ export function createRoutes({ paths, switcher, selections, ensureApplied, diagn
     }
     if (method === 'GET' && path === '/trash') {
       const author = await import('./author.js')
-      sendJson(res, 200, { ok: true, items: await author.listTrash(paths) })
+      const library = libraryOf(url.searchParams.get('library') ?? 'global')
+      const sessionId = url.searchParams.get('sessionId') ?? ''
+      const scoped = await scopedPathsFor(library, sessionId)
+      sendJson(res, 200, { ok: true, library, items: await author.listTrash(scoped) })
       return
     }
     if (method === 'GET' && path === '/events') {
@@ -328,7 +399,8 @@ export function createRoutes({ paths, switcher, selections, ensureApplied, diagn
       const sessionId = typeof body.sessionId === 'string' ? body.sessionId : ''
       if (sessionId === '') throw new HttpError(400, 'NO_SESSION', '缺少会话 id')
       const expertId = body.expertId === null || body.expertId === undefined ? null : String(body.expertId)
-      const session = await switcher.switchTo(sessionId, expertId)
+      const library = libraryOf(body.library ?? body.scope ?? 'global')
+      const session = await switcher.switchTo(sessionId, expertId, library)
       bump()
       sendJson(res, 200, { ok: true, session })
       return
@@ -344,7 +416,8 @@ export function createRoutes({ paths, switcher, selections, ensureApplied, diagn
     if (path === '/restore-trash') {
       const author = await import('./author.js')
       const body = await readJsonBody(req, BODY_CAP)
-      const expert = await author.restoreTrash(paths, body.name)
+      const scoped = await scopedPathsFor(libraryOf(body.library ?? 'global'), body.sessionId ?? '')
+      const expert = await author.restoreTrash(scoped, body.name)
       bump()
       sendJson(res, 200, { ok: true, expert })
       return
@@ -352,7 +425,8 @@ export function createRoutes({ paths, switcher, selections, ensureApplied, diagn
     if (path === '/purge-trash') {
       const author = await import('./author.js')
       const body = await readJsonBody(req, BODY_CAP)
-      const purged = await author.purgeTrash(paths, body.name)
+      const scoped = await scopedPathsFor(libraryOf(body.library ?? 'global'), body.sessionId ?? '')
+      const purged = await author.purgeTrash(scoped, body.name)
       bump()
       sendJson(res, 200, { ok: true, ...purged })
       return
@@ -360,7 +434,8 @@ export function createRoutes({ paths, switcher, selections, ensureApplied, diagn
     if (path === '/skill-import') {
       const author = await import('./author.js')
       const body = await readJsonBody(req, BODY_CAP_LARGE)
-      const expert = await author.importSkillFromPath(body.id, body.path, paths)
+      const scoped = await scopedPathsFor(libraryOf(body.library ?? 'global'), body.sessionId ?? '')
+      const expert = await author.importSkillFromPath(body.id, body.path, scoped)
       bump()
       sendJson(res, 200, { ok: true, expert })
       return

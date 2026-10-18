@@ -26,8 +26,9 @@ export function normalizeState(value) {
     if (typeof sessionId !== 'string' || sessionId === '') continue
     if (entry === null || typeof entry !== 'object') continue
     const expertId = typeof entry.expertId === 'string' && entry.expertId !== '' ? entry.expertId : null
+    const library = entry.library === 'project' ? 'project' : 'global'
     const at = typeof entry.at === 'number' && Number.isFinite(entry.at) ? entry.at : Date.now()
-    selections[sessionId] = { expertId, at }
+    selections[sessionId] = { expertId, library, at }
   }
   return { version: VERSION, selections }
 }
@@ -73,18 +74,22 @@ export async function openSelections(stateFile, logger = {}) {
   }
 
   return {
-    /** @returns {{expertId: string|null, at: number} | undefined} */
+    /** @returns {{expertId: string|null, library: 'global'|'project', at: number} | undefined} */
     get(sessionId) {
       if (typeof sessionId !== 'string' || sessionId === '') return undefined
       return state.selections[sessionId]
     },
     /** Record a selection (null clears it) and persist. */
-    set(sessionId, expertId) {
+    set(sessionId, expertId, library = 'global') {
       if (typeof sessionId !== 'string' || sessionId === '') return undefined
       if (expertId === null || expertId === undefined) {
         delete state.selections[sessionId]
       } else {
-        state.selections[sessionId] = { expertId: String(expertId), at: Date.now() }
+        state.selections[sessionId] = {
+          expertId: String(expertId),
+          library: library === 'project' ? 'project' : 'global',
+          at: Date.now(),
+        }
       }
       prune()
       void save()

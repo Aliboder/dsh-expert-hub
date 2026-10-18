@@ -38,7 +38,7 @@ window.__ModuleLoader__.load({
     // 文档相对基址：origin 根路径与带前缀挂载都成立。
     var API_BASE = 'expert-hub'
     var MONO = 'var(--dsw-font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace)'
-    var AVATAR_GLYPH = '🧑‍💻'
+    var AVATAR_GLYPH = ''
     var UNCATEGORIZED = '·uncategorized·'
     var ID_RE = /^[a-z0-9][a-z0-9-]*$/
     var AVATAR_MAX_BYTES = 2 * 1024 * 1024
@@ -94,6 +94,18 @@ window.__ModuleLoader__.load({
 .eh-section-title { margin: 0; font-size: 14px; line-height: 20px; font-weight: 600; }
 .eh-section-sub { margin: 3px 0 0; font-size: 12px; line-height: 1.6; color: var(--dsw-alias-label-secondary, inherit); }
 .eh-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.eh-scope-filter { display: inline-flex; align-items: center; gap: 3px; margin: 0 0 10px;
+  padding: 3px; border-radius: 10px; align-self: flex-start;
+  background: var(--dsw-alias-bg-layer-2, rgba(127,127,127,.08));
+  border: 1px solid var(--dsw-alias-border-l1, rgba(127,127,127,.16)); }
+.eh-scope-btn { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 11px;
+  border: 0; border-radius: 8px; background: transparent; cursor: pointer;
+  font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-secondary, inherit); }
+.eh-scope-btn:hover { color: var(--dsw-alias-label-primary, inherit); }
+.eh-scope-btn[data-active="true"] { color: var(--dsw-alias-label-primary, inherit);
+  background: var(--dsw-alias-bg-layer-1, rgba(127,127,127,.18));
+  box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+.eh-scope-count { font-size: 10.5px; opacity: .7; }
 .eh-search-wrap { position: relative; flex: 1 1 230px; min-width: 170px; }
 .eh-search-icon { position: absolute; left: 9px; top: 50%; transform: translateY(-50%);
   font-size: 13px; line-height: 1; pointer-events: none; color: var(--dsw-alias-label-tertiary, inherit); }
@@ -150,6 +162,7 @@ window.__ModuleLoader__.load({
   text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
 .eh-card-sub { font-size: 11px; line-height: 16px; overflow: hidden; text-overflow: ellipsis;
   white-space: nowrap; color: var(--dsw-alias-label-tertiary, inherit); }
+.eh-icon { display: inline-block; flex: none; vertical-align: -2px; }
 .eh-card-desc { margin: 0; min-height: 32px; font-size: 12px; line-height: 1.55;
   color: var(--dsw-alias-label-secondary, inherit); display: -webkit-box; -webkit-line-clamp: 2;
   -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
@@ -465,8 +478,8 @@ window.__ModuleLoader__.load({
   transition: transform .12s ease; }
 .eh-cap-caret[data-open="true"] { transform: rotate(180deg); }
 .eh-pop { position: absolute; bottom: calc(100% + 4px); left: 0; z-index: 10000; box-sizing: border-box;
-  display: flex; flex-direction: column; width: 320px; max-width: min(360px, calc(100vw - 24px));
-  max-height: 350px; overflow-y: auto; padding: 4px; border-radius: 12px;
+  display: flex; flex-direction: column; width: 430px; max-width: min(520px, calc(100vw - 24px));
+  max-height: 430px; overflow-y: auto; padding: 5px; border-radius: 12px;
   background: var(--dsw-alias-bg-layer-2, #1c1c1e);
   border: 1px solid var(--dsw-alias-border-inverted, rgba(127,127,127,.35));
   box-shadow: var(--dsw-shadow-lv3, 0 8px 24px rgba(0,0,0,.18));
@@ -480,10 +493,19 @@ window.__ModuleLoader__.load({
 .eh-pop-search:focus { border-color: var(--dsw-alias-brand-primary, currentColor); }
 .eh-pop-search::placeholder { color: var(--dsw-alias-label-tertiary, inherit); }
 .eh-pop-list { display: flex; flex-direction: column; gap: 1px; }
-.eh-pop-item { display: flex; align-items: center; gap: 8px; width: 100%; padding: 7px 8px;
-  border: 0; border-radius: 9px; background: transparent; cursor: pointer; text-align: left;
-  color: var(--dsw-alias-label-primary, inherit); box-sizing: border-box; }
-.eh-pop-item:hover:not(:disabled) { background: var(--dsw-alias-interactive-bg-hover, rgba(127,127,127,.12)); }
+.eh-pop-groups { display: flex; flex-direction: column; gap: 8px; }
+.eh-pop-group { display: flex; flex-direction: column; gap: 4px; }
+.eh-pop-group-title { display: flex; align-items: center; gap: 6px; padding: 2px 4px;
+  font-size: 10.5px; line-height: 15px; font-weight: 600; letter-spacing: .04em;
+  color: var(--dsw-alias-label-tertiary, inherit); }
+.eh-pop-group-count { font-weight: 500; opacity: .8; }
+.eh-pop-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; }
+.eh-pop-item { display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 7px;
+  border: 1px solid transparent; border-radius: 9px; background: transparent; cursor: pointer; text-align: left;
+  color: var(--dsw-alias-label-primary, inherit); box-sizing: border-box; min-width: 0; }
+.eh-pop-item[data-library="project"] { border-color: var(--dsw-alias-border-l1, rgba(127,127,127,.22)); }
+.eh-pop-item:hover:not(:disabled) { background: var(--dsw-alias-interactive-bg-hover, rgba(127,127,127,.12));
+  border-color: var(--dsw-alias-border-l1, rgba(127,127,127,.3)); }
 .eh-pop-item[data-current="true"] {
   background: color-mix(in srgb, var(--dsw-alias-brand-primary, #4f6ef7) 8%, transparent); }
 .eh-pop-item:disabled { opacity: .55; cursor: default; }
@@ -605,6 +627,10 @@ window.__ModuleLoader__.load({
         'installed.updatable': '可更新',
         'installed.broken': '解析失败',
         'installed.confirmDelete': '确认删除',
+        'library.global': '全局',
+        'library.project': '项目',
+        'library.all': '全部',
+        'library.filterLabel': '专家范围',
         'installed.deleteHint': '删除后移入回收站，可在页面底部恢复。',
         'installed.deleteDone': '已删除「{name}」',
         'installed.updateOneDone': '已更新「{name}」',
@@ -772,6 +798,8 @@ window.__ModuleLoader__.load({
         'capsule.openCenter': '在 设置 → 专家中心 管理专家',
         'capsule.search': '搜索专家…',
         'capsule.list': '专家列表',
+        'capsule.global': '全局专家',
+        'capsule.project': '项目专家',
         'capsule.current': '当前',
         'capsule.none': '不用专家',
         'capsule.switchDone': '已切换到「{name}」',
@@ -831,6 +859,10 @@ window.__ModuleLoader__.load({
         'installed.updatable': 'Update available',
         'installed.broken': 'Broken',
         'installed.confirmDelete': 'Confirm delete',
+        'library.global': 'Global',
+        'library.project': 'Project',
+        'library.all': 'All',
+        'library.filterLabel': 'Expert scope',
         'installed.deleteHint': 'Moved to the recycle bin; you can restore it below.',
         'installed.deleteDone': 'Deleted “{name}”',
         'installed.updateOneDone': 'Updated “{name}”',
@@ -998,6 +1030,8 @@ window.__ModuleLoader__.load({
         'capsule.openCenter': 'Manage experts in Settings → Expert Center',
         'capsule.search': 'Search experts…',
         'capsule.list': 'Expert list',
+        'capsule.global': 'Global experts',
+        'capsule.project': 'Project experts',
         'capsule.current': 'Current',
         'capsule.none': 'No expert',
         'capsule.switchDone': 'Switched to “{name}”',
@@ -1155,9 +1189,13 @@ window.__ModuleLoader__.load({
       return API_BASE + '/state' + (id === '' ? '' : '?sessionId=' + encodeURIComponent(id))
     }
 
-    function detailUrl (id, scope) {
+    function detailUrl (id, scope, library, sessionId) {
       var actualScope = scope === 'workbuddy' ? 'workbuddy' : 'installed'
-      return API_BASE + '/detail?id=' + encodeURIComponent(strOf(id)) + '&scope=' + actualScope
+      var project = library === 'project' ? 'project' : 'global'
+      return API_BASE + '/detail?id=' + encodeURIComponent(strOf(id)) + '&scope=' + actualScope +
+        (project === 'project'
+          ? '&library=project&sessionId=' + encodeURIComponent(strOf(sessionId))
+          : '')
     }
 
     function fetchState (sessionId) {
@@ -1457,6 +1495,43 @@ window.__ModuleLoader__.load({
       }, firstGlyph(nameOf(card)))
     }
 
+    /** Inline SVG icon set — replaces emoji glyphs in the UI. */
+    function Icon (props) {
+      var name = strOf(props.name)
+      var size = typeof props.size === 'number' ? props.size : 14
+      var paths = {
+        close: [['M6 6l12 12'], ['M18 6L6 18']],
+        search: [['M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14z'], ['M20 20l-4-4']],
+        up: [['M12 19V5'], ['M6 11l6-6 6 6']],
+        warning: [['M12 4l8.5 15h-17L12 4z'], ['M12 10v4'], ['M12 17h.01']],
+        check: [['M5 12.5l4.5 4.5L19 7.5']],
+        chevronDown: [['M7 10l5 5 5-5']],
+        chevronRight: [['M10 7l5 5-5 5']],
+        plus: [['M12 5v14'], ['M5 12h14']],
+        trash: [['M5 7h14'], ['M9 7V5h6v2'], ['M7 7l1 13h8l1-13']],
+        restore: [['M4 9a8 8 0 1 1 2 8'], ['M4 4v5h5']],
+        user: [['M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8z'], ['M5 20a7 7 0 0 1 14 0']],
+      }
+      var children = []
+      var list = paths[name] !== undefined ? paths[name] : paths.close
+      for (var i = 0; i < list.length; i++) {
+        var d = list[i][0]
+        children.push(el('path', { d: d, key: 'p:' + i }))
+      }
+      return el('svg', {
+        className: 'eh-icon' + (props.className !== undefined ? ' ' + props.className : ''),
+        width: size,
+        height: size,
+        viewBox: '0 0 24 24',
+        fill: 'none',
+        stroke: 'currentColor',
+        strokeWidth: 1.8,
+        strokeLinecap: 'round',
+        strokeLinejoin: 'round',
+        'aria-hidden': 'true'
+      }, children)
+    }
+
     /** 通用遮罩容器：Escape / 点击遮罩关闭，focus 落到面板，锁定 body 滚动。 */
     function Overlay (props) {
       var t = props.t
@@ -1505,7 +1580,7 @@ window.__ModuleLoader__.load({
             className: 'eh-icon-btn', type: 'button',
             title: t('page.close'), 'aria-label': t('page.close'),
             onClick: close
-          }, '✕')),
+          }, el(Icon, { name: 'close', size: 14 }))),
         el('div', { className: 'eh-dialog-body' }, props.children),
         props.footer !== undefined && props.footer !== null
           ? el('footer', { className: 'eh-dialog-foot' }, props.footer)
@@ -1525,7 +1600,7 @@ window.__ModuleLoader__.load({
       }
       return el('div', { className: 'eh-toolbar' },
         el('div', { className: 'eh-search-wrap' },
-          el('span', { className: 'eh-search-icon', 'aria-hidden': 'true' }, '⌕'),
+          el('span', { className: 'eh-search-icon', 'aria-hidden': 'true' }, el(Icon, { name: 'search', size: 14 })),
           el('input', {
             className: 'eh-search',
             type: 'search',
@@ -1559,7 +1634,7 @@ window.__ModuleLoader__.load({
     /** 空态（含可选行动按钮）。 */
     function EmptyState (props) {
       return el('div', { className: 'eh-empty' },
-        el('span', { className: 'eh-empty-face', 'aria-hidden': 'true' }, props.face !== undefined ? props.face : AVATAR_GLYPH),
+        el('span', { className: 'eh-empty-face', 'aria-hidden': 'true' }, props.face !== undefined ? props.face : el(Icon, { name: 'user', size: 22 })),
         el('p', { className: 'eh-empty-title' }, props.title),
         el('p', { className: 'eh-empty-tip' }, props.tip),
         props.actionLabel !== undefined && props.actionLabel !== null
@@ -1594,7 +1669,7 @@ window.__ModuleLoader__.load({
           'aria-expanded': open ? 'true' : 'false',
           onClick: function () { setOpen(!open) }
         },
-          el('span', { className: 'eh-warns-caret', 'aria-hidden': 'true' }, open ? '▾' : '▸'),
+          el('span', { className: 'eh-warns-caret', 'aria-hidden': 'true' }, el(Icon, { name: open ? 'chevronDown' : 'chevronRight', size: 12 })),
           t('market.warningsToggle', { n: warnings.length })),
         open ? el('ul', { className: 'eh-warns-list' }, items) : null)
     }
@@ -1625,12 +1700,17 @@ window.__ModuleLoader__.load({
       var searchRef = React.useRef(null)
 
       var installed = data !== null && Array.isArray(data.installed) ? data.installed : []
+      var project = data !== null && Array.isArray(data.project) ? data.project : []
+      var availableCards = []
+      for (var gi = 0; gi < installed.length; gi++) availableCards.push(Object.assign({}, installed[gi], { library: 'global' }))
+      for (var pi = 0; pi < project.length; pi++) availableCards.push(Object.assign({}, project[pi], { library: 'project' }))
       var session = data !== null && data.session !== null && typeof data.session === 'object' ? data.session : null
       var currentId = session !== null ? strOf(session.expertId) : ''
+      var currentLibrary = session !== null && strOf(session.library) === 'project' ? 'project' : 'global'
       var currentCard = null
-      for (var ci = 0; ci < installed.length; ci++) {
-        if (strOf(installed[ci].id) === currentId) {
-          currentCard = installed[ci]
+      for (var ci = 0; ci < availableCards.length; ci++) {
+        if (strOf(availableCards[ci].id) === currentId && strOf(availableCards[ci].library) === currentLibrary) {
+          currentCard = availableCards[ci]
           break
         }
       }
@@ -1695,11 +1775,15 @@ window.__ModuleLoader__.load({
         }
       }
 
-      function switchTo (expertId) {
+      function switchTo (expertId, library) {
         if (disabled || busy !== '') return
         setError('')
         setBusy('switch')
-        postJson(API_BASE + '/switch', { sessionId: sessionId, expertId: expertId }).then(function () {
+        postJson(API_BASE + '/switch', {
+          sessionId: sessionId,
+          expertId: expertId,
+          library: library === 'project' ? 'project' : 'global'
+        }).then(function () {
           setOpen(false)
           return pull()
         }, function (err) {
@@ -1710,30 +1794,28 @@ window.__ModuleLoader__.load({
 
       function pick (card) {
         if (isBroken(card)) return
-        switchTo(strOf(card.id))
+        switchTo(strOf(card.id), strOf(card.library))
       }
 
       function clearExpert () {
-        switchTo(null)
+        switchTo(null, 'global')
       }
 
-      var filtered = filterCards(installed, query, 'all', 'order')
-      var items = []
-      for (var ii = 0; ii < filtered.length; ii++) {
-        items.push(capsuleItem(filtered[ii]))
-      }
+      var filtered = filterCards(availableCards, query, 'all', 'order')
 
       function capsuleItem (card) {
         var id = strOf(card.id)
-        var current = id !== '' && id === currentId
+        var library = strOf(card.library) === 'project' ? 'project' : 'global'
+        var current = id !== '' && id === currentId && library === currentLibrary
         var broken = isBroken(card)
         var title = broken ? strOf(card.broken) : (professionOf(card) !== '' ? professionOf(card) : strOf(card.description))
         return el('button', {
-          key: id,
+          key: library + ':' + id,
           type: 'button',
           role: 'option',
           className: 'eh-pop-item',
           'data-current': current ? 'true' : undefined,
+          'data-library': library,
           'aria-selected': current ? 'true' : 'false',
           disabled: busy !== '' || broken,
           title: title,
@@ -1745,15 +1827,31 @@ window.__ModuleLoader__.load({
             professionOf(card) !== '' && professionOf(card) !== nameOf(card)
               ? el('span', { className: 'eh-pop-prof' }, professionOf(card))
               : null,
-            broken ? el('span', { className: 'eh-pop-prof' }, '⚠ ' + strOf(card.broken)) : null),
-          current ? el('span', { className: 'eh-pop-check', title: t('capsule.current') }, '✓') : null)
+            broken ? el('span', { className: 'eh-pop-prof' }, el(Icon, { name: 'warning', size: 12 }), ' ' + strOf(card.broken)) : null),
+          current ? el('span', { className: 'eh-pop-check', title: t('capsule.current') }, el(Icon, { name: 'check', size: 14 })) : null)
+      }
+
+      function groupView (title, cards) {
+        if (cards.length === 0) return null
+        var items = []
+        for (var i = 0; i < cards.length; i++) items.push(capsuleItem(cards[i]))
+        return el('div', { className: 'eh-pop-group' },
+          el('div', { className: 'eh-pop-group-title' }, title, el('span', { className: 'eh-pop-group-count' }, String(cards.length))),
+          el('div', { className: 'eh-pop-grid', role: 'listbox', 'aria-label': title }, items))
+      }
+
+      var globalFiltered = []
+      var projectFiltered = []
+      for (var fi = 0; fi < filtered.length; fi++) {
+        if (strOf(filtered[fi].library) === 'project') projectFiltered.push(filtered[fi])
+        else globalFiltered.push(filtered[fi])
       }
 
       var listView = null
       if (data === null) {
         listView = el('div', { className: 'eh-pop-empty' }, t('capsule.loading'))
       } else if (filtered.length === 0) {
-        if (installed.length === 0) {
+        if (availableCards.length === 0) {
           listView = el('div', { className: 'eh-pop-empty' },
             t('capsule.empty'),
             el('span', { className: 'eh-pop-empty-tip' }, t('capsule.emptyHint')))
@@ -1761,7 +1859,9 @@ window.__ModuleLoader__.load({
           listView = el('div', { className: 'eh-pop-empty' }, t('capsule.noMatch'))
         }
       } else {
-        listView = el('div', { className: 'eh-pop-list', role: 'listbox', 'aria-label': t('capsule.list') }, items)
+        listView = el('div', { className: 'eh-pop-groups' },
+          groupView(t('capsule.global'), globalFiltered),
+          groupView(t('capsule.project'), projectFiltered))
       }
 
       var popover = null
@@ -1789,7 +1889,7 @@ window.__ModuleLoader__.load({
             disabled: busy !== '',
             title: t('capsule.none'),
             onClick: clearExpert
-          }, '✕ ', t('capsule.none')) : null,
+          }, el(Icon, { name: 'close', size: 12 }), ' ', t('capsule.none')) : null,
           el('div', { className: 'eh-pop-foot' }, t('capsule.openCenter')))
       }
 
@@ -1813,7 +1913,7 @@ window.__ModuleLoader__.load({
             className: 'eh-cap-caret',
             'data-open': open ? 'true' : undefined,
             'aria-hidden': 'true'
-          }, '▾')),
+          }, el(Icon, { name: 'chevronDown', size: 12 }))),
         popover)
     }
 
@@ -1888,15 +1988,23 @@ window.__ModuleLoader__.load({
           }, t('page.update')))
         } else {
           actions.push(el('span', { key: 'installed', className: 'eh-badge', 'data-kind': 'ok' },
-            '✓ ', t('tab.installed')))
+            el(Icon, { name: 'check', size: 12 }), ' ', t('tab.installed')))
         }
       }
 
       var marks = []
       if (updatable) marks.push(el('span', { key: 'up', className: 'eh-badge', 'data-kind': 'update' },
-        '↑ ', t('installed.updatable')))
+        el(Icon, { name: 'up', size: 12 }), ' ', t('installed.updatable')))
       if (broken) marks.push(el('span', { key: 'bad', className: 'eh-badge', 'data-kind': 'warn' },
-        '⚠ ', t('installed.broken')))
+        el(Icon, { name: 'warning', size: 12 }), ' ', t('installed.broken')))
+      if (mode === 'installed') {
+        var isProject = strOf(card.library) === 'project'
+        marks.push(el('span', {
+          key: 'library',
+          className: 'eh-badge',
+          'data-kind': isProject ? 'project' : 'muted'
+        }, t(isProject ? 'library.project' : 'library.global')))
+      }
 
       return el('li', {
         className: 'eh-card',
@@ -1986,10 +2094,10 @@ window.__ModuleLoader__.load({
             el('div', { className: 'eh-card-name-row' },
               el('span', { className: 'eh-detail-name' }, nameOf(current)),
               current.updatable === true
-                ? el('span', { className: 'eh-badge', 'data-kind': 'update' }, '↑ ', t('installed.updatable'))
+                ? el('span', { className: 'eh-badge', 'data-kind': 'update' }, el(Icon, { name: 'up', size: 12 }), ' ', t('installed.updatable'))
                 : null,
               current.broken !== undefined && strOf(current.broken) !== ''
-                ? el('span', { className: 'eh-badge', 'data-kind': 'warn' }, '⚠ ', t('installed.broken'))
+                ? el('span', { className: 'eh-badge', 'data-kind': 'warn' }, el(Icon, { name: 'warning', size: 12 }), ' ', t('installed.broken'))
                 : null),
             professionOf(current) !== '' ? el('span', { className: 'eh-detail-prof' }, professionOf(current)) : null,
             el('span', { className: 'eh-detail-id' }, strOf(current.id)))))
@@ -2070,7 +2178,7 @@ window.__ModuleLoader__.load({
             el('span', { className: 'eh-skill-meta' },
               strOf(skill.description) !== '' ? strOf(skill.description) : '',
               el('span', null, t('detail.skillChars', { n: chars })),
-              el('span', { 'aria-hidden': 'true' }, open ? '▾' : '▸'))),
+              el('span', { 'aria-hidden': 'true' }, el(Icon, { name: open ? 'chevronDown' : 'chevronRight', size: 12 })))),
           open
             ? el('pre', { className: 'eh-skill-body' }, content !== '' ? content : t('detail.loading'))
             : null)
@@ -2773,6 +2881,8 @@ window.__ModuleLoader__.load({
       var card = props.card !== null && props.card !== undefined ? props.card : {}
       var scope = props.scope === 'workbuddy' ? 'workbuddy' : 'installed'
       var cardId = strOf(card.id)
+      var library = props.library === 'project' || strOf(card.library) === 'project' ? 'project' : 'global'
+      var sessionId = strOf(props.sessionId)
 
       var phaseState = React.useState('loading')
       var phase = phaseState[0]
@@ -2834,7 +2944,7 @@ window.__ModuleLoader__.load({
         }
         setPhase('loading')
         setError('')
-        return api(detailUrl(cardId, scope)).then(function (payload) {
+        return api(detailUrl(cardId, scope, library, sessionId)).then(function (payload) {
           var actual = payload !== null && payload.card !== null && typeof payload.card === 'object' ? payload.card : card
           var nextValues = {
             displayName: nameOf(actual),
@@ -2924,8 +3034,8 @@ window.__ModuleLoader__.load({
           return
         }
         setSkillBusy(true)
-        postJson(API_BASE + '/skill-import', { id: cardId, path: path }).then(function () {
-          return api(detailUrl(cardId, 'installed')).then(function (payload) {
+        postJson(API_BASE + '/skill-import', { id: cardId, path: path, library: library, sessionId: sessionId }).then(function () {
+          return api(detailUrl(cardId, 'installed', library, sessionId)).then(function (payload) {
             var rows = []
             var raw = payload !== null && Array.isArray(payload.skills) ? payload.skills : []
             for (var i = 0; i < raw.length; i++) {
@@ -3188,7 +3298,7 @@ window.__ModuleLoader__.load({
               'aria-expanded': isOpen ? 'true' : 'false',
               onClick: (function (k) { return function () { toggle(k) } })(key)
             },
-              el('span', { className: 'eh-skill-chevron', 'aria-hidden': 'true' }, isOpen ? '▾' : '▸'),
+              el('span', { className: 'eh-skill-chevron', 'aria-hidden': 'true' }, el(Icon, { name: isOpen ? 'chevronDown' : 'chevronRight', size: 12 })),
               el('span', { className: 'eh-skill-titles' },
                 el('span', { className: 'eh-skill-title' }, title),
                 el('span', { className: 'eh-skill-desc' }, preview !== '' ? preview : t('skill.noContent'))),
@@ -3248,7 +3358,7 @@ window.__ModuleLoader__.load({
         readOnly
           ? null
           : el('button', { className: 'eh-skill-add', type: 'button', onClick: handleAdd },
-              '＋ ', t('edit.addSkill')),
+              el(Icon, { name: 'plus', size: 12 }), ' ', t('edit.addSkill')),
         readOnly
           ? null
           : el('div', { className: 'eh-skill-import' },
@@ -3752,6 +3862,9 @@ window.__ModuleLoader__.load({
       var tabState = React.useState('installed')
       var tab = tabState[0]
       var setTab = tabState[1]
+      var scopeFilterState = React.useState('all')
+      var scopeFilter = scopeFilterState[0]
+      var setScopeFilter = scopeFilterState[1]
       var queryState = React.useState('')
       var query = queryState[0]
       var setQuery = queryState[1]
@@ -3792,12 +3905,20 @@ window.__ModuleLoader__.load({
       }
 
       function loadTrash () {
-        return api(API_BASE + '/trash').then(function (payload) {
-          setTrash(arrOf(payload !== null && payload !== undefined ? payload.items : null))
-          return payload
-        }, function () {
-          setTrash([])
-          return null
+        var globalReq = api(API_BASE + '/trash').then(function (payload) {
+          return arrOf(payload !== null && payload !== undefined ? payload.items : null).map(function (item) {
+            return Object.assign({}, item, { library: 'global' })
+          })
+        }, function () { return [] })
+        var projectReq = api(API_BASE + '/trash?library=project&sessionId=' + encodeURIComponent(sessionId))
+          .then(function (payload) {
+            return arrOf(payload !== null && payload !== undefined ? payload.items : null).map(function (item) {
+              return Object.assign({}, item, { library: 'project' })
+            })
+          }, function () { return [] })
+        return Promise.all([globalReq, projectReq]).then(function (lists) {
+          setTrash(lists[0].concat(lists[1]))
+          return lists
         })
       }
 
@@ -3834,7 +3955,11 @@ window.__ModuleLoader__.load({
       }, [trashConfirm])
 
       var config = data !== null && data.config !== null && typeof data.config === 'object' ? data.config : {}
-      var installed = cardsOf(data, 'installed')
+      var installedGlobal = cardsOf(data, 'installed')
+      var installedProject = cardsOf(data, 'project')
+      for (var gi = 0; gi < installedGlobal.length; gi++) installedGlobal[gi].library = 'global'
+      for (var pi = 0; pi < installedProject.length; pi++) installedProject[pi].library = 'project'
+      var installed = installedGlobal.concat(installedProject)
       var available = cardsOf(data, 'available')
       var warnings = data !== null && Array.isArray(data.warnings) ? data.warnings : []
       var counts = data !== null && data.counts !== null && typeof data.counts === 'object' ? data.counts : {}
@@ -3843,7 +3968,9 @@ window.__ModuleLoader__.load({
 
       var installedCategories = categoriesOf(installed, t)
       var marketCategories = categoriesOf(available, t)
-      var filteredInstalled = filterCards(installed, query, category, sort)
+      var filteredInstalled = filterCards(installed, query, category, sort).filter(function (card) {
+        return scopeFilter === 'all' || strOf(card.library) === scopeFilter
+      })
       var filteredAvailable = filterCards(available, query, category, sort)
 
       var importable = []
@@ -3855,7 +3982,7 @@ window.__ModuleLoader__.load({
         if (candidate.updatable === true) updatableCards.push(candidate)
       }
 
-      var headInstalled = typeof counts.installed === 'number' ? counts.installed : installed.length
+      var headInstalled = installed.length
       var headAvailable = typeof counts.available === 'number' ? counts.available : available.length
       var headUpdatable = typeof counts.updatable === 'number' ? counts.updatable : updatableCards.length
       var filterActive = strOf(query) !== '' || category !== 'all'
@@ -3955,7 +4082,11 @@ window.__ModuleLoader__.load({
         setConfirmKey('')
         setBusy('delete:' + id)
         setNotice(null)
-        postJson(API_BASE + '/delete', { id: id }).then(function () {
+        postJson(API_BASE + '/delete', {
+          id: id,
+          library: strOf(card.library) === 'project' ? 'project' : 'global',
+          sessionId: sessionId
+        }).then(function () {
           setNotice({ kind: 'ok', text: t('installed.deleteDone', { name: nameOf(card) }) })
           if (detail !== null && detail.card !== null && detail.card !== undefined &&
             strOf(detail.card.id) === id) setDetail(null)
@@ -3977,7 +4108,11 @@ window.__ModuleLoader__.load({
         setTrashConfirm('')
         setTrashBusy(name)
         setNotice(null)
-        postJson(API_BASE + '/purge-trash', { name: name }).then(function () {
+        postJson(API_BASE + '/purge-trash', {
+          name: name,
+          library: strOf(item.library) === 'project' ? 'project' : 'global',
+          sessionId: sessionId
+        }).then(function () {
           setNotice({ kind: 'ok', text: t('trash.purged', { name: strOf(item.displayName) || name }) })
           return loadTrash()
         }, function (err) {
@@ -3992,7 +4127,11 @@ window.__ModuleLoader__.load({
         if (name === '') return
         setTrashBusy(name)
         setNotice(null)
-        postJson(API_BASE + '/restore-trash', { name: name }).then(function (result) {
+        postJson(API_BASE + '/restore-trash', {
+          name: name,
+          library: strOf(item.library) === 'project' ? 'project' : 'global',
+          sessionId: sessionId
+        }).then(function (result) {
           var restored = result !== null && result !== undefined ? result.expert : null
           setNotice({ kind: 'ok', text: t('trash.restored', { name: nameOf(restored) || strOf(item.displayName) || name }) })
           return Promise.all([pull(), loadTrash()])
@@ -4009,7 +4148,11 @@ window.__ModuleLoader__.load({
         if (laneBusy) return
         setBusy('switch')
         setNotice(null)
-        postJson(API_BASE + '/switch', { sessionId: sessionId, expertId: strOf(card.id) }).then(function () {
+        postJson(API_BASE + '/switch', {
+          sessionId: sessionId,
+          expertId: strOf(card.id),
+          library: strOf(card.library) === 'project' ? 'project' : 'global'
+        }).then(function () {
           setNotice({ kind: 'ok', text: t('detail.useDone', { name: nameOf(card) }) })
           return pull()
         }, function (err) {
@@ -4033,12 +4176,15 @@ window.__ModuleLoader__.load({
         setNotice(null)
         return postJson(API_BASE + '/update', {
           id: strOf(card.id),
+          library: strOf(card.library) === 'project' ? 'project' : 'global',
+          sessionId: sessionId,
           patch: {
             displayName: payload.displayName,
             profession: payload.profession,
             description: payload.description,
             tags: payload.tags,
-            quickPrompts: payload.quickPrompts
+            quickPrompts: payload.quickPrompts,
+            skills: payload.skills
           },
           roleText: payload.roleText,
           avatarDataUrl: payload.avatarDataUrl
@@ -4072,13 +4218,14 @@ window.__ModuleLoader__.load({
       }
 
       function onCardAction (card, action, mode) {
-        var key = mode + ':' + strOf(card.id)
+        var library = strOf(card.library) === 'project' ? 'project' : 'global'
+        var key = mode + ':' + library + ':' + strOf(card.id)
         if (action === 'detail') {
-          setDetail({ scope: mode === 'market' ? 'workbuddy' : 'installed', card: card })
+          setDetail({ scope: mode === 'market' ? 'workbuddy' : 'installed', library: library, card: card })
           return
         }
         if (action === 'edit') {
-          setDetail({ scope: 'installed', card: card })
+          setDetail({ scope: 'installed', library: library, card: card })
           return
         }
         if (action === 'delete') {
@@ -4104,7 +4251,7 @@ window.__ModuleLoader__.load({
       }
 
       function cardView (card, mode) {
-        var key = mode + ':' + strOf(card.id)
+        var key = mode + ':' + (strOf(card.library) === 'project' ? 'project' : 'global') + ':' + strOf(card.id)
         return el(ExpertCardView, {
           key: key,
           t: t,
@@ -4136,7 +4283,7 @@ window.__ModuleLoader__.load({
           }
           return el(EmptyState, {
             t: t,
-            face: '⌕',
+            face: el(Icon, { name: 'search', size: 22 }),
             title: noMatchTitle,
             tip: noMatchTip,
             actionLabel: t('installed.clearFilters'),
@@ -4157,7 +4304,10 @@ window.__ModuleLoader__.load({
           var deletedAt = strOf(trashItem.deletedAt).replace('T', ' ').replace('Z', '')
           trashItems.push(el('li', { className: 'eh-trash-item', key: 'trash:' + trashName },
             el('div', { className: 'eh-trash-main' },
-              el('span', { className: 'eh-trash-name' }, strOf(trashItem.displayName) || strOf(trashItem.id) || trashName),
+              el('span', { className: 'eh-trash-name' },
+                strOf(trashItem.displayName) || strOf(trashItem.id) || trashName,
+                ' ',
+                el('span', { className: 'eh-badge' }, t(trashItem.library === 'project' ? 'library.project' : 'library.global'))),
               el('span', { className: 'eh-hint' }, t('trash.deletedAt', { time: deletedAt }))),
             el('div', { className: 'eh-trash-actions' },
               el('button', {
@@ -4181,6 +4331,22 @@ window.__ModuleLoader__.load({
           el('ul', { className: 'eh-trash-list' }, trashItems))
       }
 
+      var scopeOptions = [
+        { id: 'all', label: t('library.all'), count: installedGlobal.length + installedProject.length },
+        { id: 'global', label: t('library.global'), count: installedGlobal.length },
+        { id: 'project', label: t('library.project'), count: installedProject.length }
+      ]
+      var scopeNodes = []
+      for (var si = 0; si < scopeOptions.length; si++) {
+        scopeNodes.push(el('button', {
+          key: scopeOptions[si].id,
+          className: 'eh-scope-btn',
+          type: 'button',
+          'data-active': scopeFilter === scopeOptions[si].id ? 'true' : undefined,
+          onClick: (function (id) { return function () { setScopeFilter(id) } })(scopeOptions[si].id)
+        }, scopeOptions[si].label, el('span', { className: 'eh-scope-count' }, String(scopeOptions[si].count))))
+      }
+
       var installedPanel = el('section', {
         className: 'eh-panel',
         role: 'tabpanel',
@@ -4188,6 +4354,7 @@ window.__ModuleLoader__.load({
         'aria-labelledby': 'eh-tab-installed',
         hidden: tab !== 'installed' ? true : undefined
       },
+        el('div', { className: 'eh-scope-filter', role: 'group', 'aria-label': t('library.filterLabel') }, scopeNodes),
         el(ExpertToolbar, {
           t: t,
           query: query,
@@ -4344,6 +4511,7 @@ window.__ModuleLoader__.load({
               t: t,
               card: detail.card,
               scope: detail.scope,
+              library: detail.library !== undefined ? detail.library : strOf(detail.card.library),
               sessionId: sessionId,
               laneBusy: laneBusy,
               onClose: function () { setDetail(null) },

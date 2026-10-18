@@ -222,7 +222,7 @@ async function readFileSafe(path) {
 }
 
 /** Build the wire card for one installed expert folder. */
-async function cardFromDir(dir, dirName) {
+async function cardFromDir(dir, dirName, library = 'global') {
   const yml = await readFileSafe(join(dir, 'expert.yml'))
   const broken = (reason) => ({
     id: dirName,
@@ -236,8 +236,9 @@ async function cardFromDir(dir, dirName) {
     teamSize: 1,
     installed: true,
     updatable: false,
+    library,
     sourceKind: 'installed',
-    sourceLabel: '本机专家',
+    sourceLabel: library === 'project' ? '项目专家' : '本机专家',
     order: 999,
     avatarUrl: '',
     broken: reason,
@@ -272,10 +273,11 @@ async function cardFromDir(dir, dirName) {
     teamSize: 1,
     installed: true,
     updatable: false,
+    library,
     sourceKind: 'installed',
     sourceLabel: sourceLabelOf(manifest),
     order: fields.order,
-    avatarUrl: avatar === null ? '' : `expert-hub/avatar?id=${encodeURIComponent(fields.id)}&scope=installed`,
+    avatarUrl: avatar === null ? '' : `expert-hub/avatar?id=${encodeURIComponent(fields.id)}&scope=installed&library=${library}`,
     dir,
     manifest,
   }
@@ -296,6 +298,7 @@ function sourceLabelOf(manifest) {
 
 /** Scan the installed expert library into cards, broken rows included. */
 export async function scanInstalled(paths) {
+  const library = paths.scope === 'project' ? 'project' : 'global'
   let entries
   try {
     entries = await readdir(paths.expertsRoot, { withFileTypes: true })
@@ -308,7 +311,7 @@ export async function scanInstalled(paths) {
     if (entry.startsWith('.')) continue
     const dir = join(paths.expertsRoot, entry)
     try {
-      cards.push(await cardFromDir(dir, entry))
+      cards.push(await cardFromDir(dir, entry, library))
     } catch (error) {
       warnings.push(`${entry}：读取失败（${error?.message ?? error}）`)
     }
@@ -326,7 +329,7 @@ export async function readInstalledDetail(paths, id) {
   const roleText = await readFileSafe(join(dir, 'role.md'))
   const skills = await readSkillEntries(dir)
   return {
-    card: await cardFromDir(dir, id),
+    card: await cardFromDir(dir, id, paths.scope === 'project' ? 'project' : 'global'),
     roleText,
     skills: skills
       .filter((skill) => skill.hasSkillMd)

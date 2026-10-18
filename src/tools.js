@@ -431,18 +431,32 @@ async function activateExpert(id, deps) {
     return { activated: false, activateError: '当前环境不支持会话内启用' }
   }
   try {
-    const result = await deps.switcher.switchTo(deps.sessionId, id)
+    const result = await deps.switcher.switchTo(deps.sessionId, id, deps.library === 'project' ? 'project' : 'global')
     return { activated: true, activateError: '', result }
   } catch (error) {
     return { activated: false, activateError: error instanceof Error ? error.message : String(error) }
   }
 }
 
+/** Resolve the library root for one expert_manage call. */
+async function managePaths(deps, input) {
+  const library = input?.library === 'project' ? 'project' : 'global'
+  if (library === 'global') return { paths: deps.paths, library }
+  if (typeof deps.resolveProjectPaths !== 'function' || !deps.sessionId) {
+    throw new ManageToolError('NO_PROJECT', '当前会话没有项目目录，无法使用项目级专家')
+  }
+  const scoped = await deps.resolveProjectPaths(deps.sessionId)
+  if (scoped === undefined || scoped === null) {
+    throw new ManageToolError('NO_PROJECT', '当前会话没有项目目录，无法使用项目级专家')
+  }
+  return { paths: scoped, library }
+}
+
 /**
  * Read or mutate the expert library for the model.
  *
  * @param {object} args
- * @param {{ paths: object, switcher?: object, sessionId?: string }} deps
+ * @param {{ paths: object, switcher?: object, sessionId?: string, resolveProjectPaths?: Function }} deps
  */
 export async function runExpertManage(args, deps) {
   const input = args !== null && typeof args === 'object' ? args : {}
@@ -461,26 +475,30 @@ export async function runExpertManage(args, deps) {
     }
   }
   if (action === 'list') {
-    const state = await installedState(deps.paths)
+    const target = await managePaths(deps, input)
+    const state = await installedState(target.paths)
     return {
       ok: true,
       action,
-      experts: state.cards.map(summarizeCard),
+      library: target.library,
+      experts: state.cards.map((card) => ({ ...summarizeCard(card), library: target.library })),
       hints: ['用 action=get 读取某位专家的角色提示词与技能；用 update / add_skill / remove_skill 修改。'],
     }
   }
   if (action === 'get') {
     const id = requireId(input.id)
+    const target = await managePaths(deps, input)
     let detail
     try {
-      detail = await readInstalledDetail(deps.paths, id)
+      detail = await readInstalledDetail(target.paths, id)
     } catch {
       throw new ManageToolError('EXPERT_NOT_FOUND', `找不到已安装专家：${id}`)
     }
     return {
       ok: true,
       action,
-      expert: summarizeCard(detail.card),
+      library: target.library,
+      expert: { ...summarizeCard(detail.card), library: target.library },
       roleText: clip(detail.roleText ?? '', MAX_INSPECT_ROLE_CHARS),
       roleChars: (detail.roleText ?? '').length,
       skills: skillRowsOf(detail).map((skill) => ({
@@ -494,12 +512,14 @@ export async function runExpertManage(args, deps) {
   if (action === 'create') {
     const expertInput = input.expert !== null && typeof input.expert === 'object' ? input.expert : null
     if (expertInput === null) throw new ManageToolError('EXPERT_MISSING', 'create 需要 expert 参数')
-    const card = await createExpert(expertInput, deps.paths)
-    const activation = await activateExpert(card.id, { ...deps, activate: input.activate === true })
+    const target = await managePaths(deps, input)
+    const card = await createExpert(expertInput, target.paths)
+    const activation = await activateExpert(card.id, { ...deps, activate: input.activate === true, library: target.library })
     return {
       ok: true,
       action,
-      expert: summarizeCard(card),
+      library: target.library,
+      expert: { ...summarizeCard(card), library: target.library },
       activated: activation.activated,
       activateError: activation.activateError,
       hints: ['用 get 检查写入结果；用 use 在当前会话启用。'],
@@ -509,12 +529,14 @@ export async function runExpertManage(args, deps) {
     const id = requireId(input.id)
     const patch = input.patch !== null && typeof input.patch === 'object' ? input.patch : null
     if (patch === null) throw new ManageToolError('PATCH_MISSING', 'update 需要 patch 参数')
-    const card = await updateExpert(id, patch, deps.paths)
-    const activation = await activateExpert(id, { ...deps, activate: input.activate === true })
+    const target = await managePaths(deps, input)
+    const card = await updateExpert(id, patch, target.paths)
+    const activation = await activateExpert(id, { ...deps, activate: input.activate === true, library: target.library })
     return {
       ok: true,
       action,
-      expert: summarizeCard(card),
+      library: target.library,
+      expert: { ...summarizeCard(card), library: target.library },
       activated: activation.activated,
       activateError: activation.activateError,
       hints: ['如果该专家正在当前会话使用，activate=true 可立即刷新角色与技能。'],
@@ -524,7 +546,8 @@ export async function runExpertManage(args, deps) {
     const id = requireId(input.id)
     const skill = input.skill !== null && typeof input.skill === 'object' ? input.skill : null
     if (skill === null) throw new ManageToolError('SKILL_MISSING', 'add_skill 需要 skill:{name, content}')
-    const detail = await readInstalledDetail(deps.paths, id).catch(() => {
+    const target = await managePaths(deps, input)
+    const detail = await readInstalledDetail(target.paths, id).catch(() => {
       throw new ManageToolError('EXPERT_NOT_FOUND', `找不到已安装专家：${id}`)
     })
     const rows = skillRowsOf(detail)
@@ -535,34 +558,37 @@ export async function runExpertManage(args, deps) {
     const index = rows.findIndex((row) => row.name === name)
     if (index >= 0) rows[index] = { name, content }
     else rows.push({ name, content })
-    const card = await updateExpert(id, { skills: rows }, deps.paths)
-    return { ok: true, action, expert: summarizeCard(card), skill: name, replaced: index >= 0 }
+    const card = await updateExpert(id, { skills: rows }, target.paths)
+    return { ok: true, action, library: target.library, expert: { ...summarizeCard(card), library: target.library }, skill: name, replaced: index >= 0 }
   }
   if (action === 'remove_skill') {
     const id = requireId(input.id)
     const name = textOf(input.name)
     if (name === '') throw new ManageToolError('SKILL_NAME_MISSING', 'remove_skill 需要 name')
-    const detail = await readInstalledDetail(deps.paths, id).catch(() => {
+    const target = await managePaths(deps, input)
+    const detail = await readInstalledDetail(target.paths, id).catch(() => {
       throw new ManageToolError('EXPERT_NOT_FOUND', `找不到已安装专家：${id}`)
     })
     const rows = skillRowsOf(detail)
     const next = rows.filter((row) => row.name !== name)
     if (next.length === rows.length) throw new ManageToolError('SKILL_NOT_FOUND', `该专家没有技能：${name}`)
-    const card = await updateExpert(id, { skills: next }, deps.paths)
-    return { ok: true, action, expert: summarizeCard(card), skill: name, skills: next.length }
+    const card = await updateExpert(id, { skills: next }, target.paths)
+    return { ok: true, action, library: target.library, expert: { ...summarizeCard(card), library: target.library }, skill: name, skills: next.length }
   }
   if (action === 'import_skill') {
     const id = requireId(input.id)
     const path = textOf(input.path)
     if (path === '') throw new ManageToolError('PATH_MISSING', 'import_skill 需要 path（本机技能目录或 .md）')
-    const card = await importSkillFromPath(id, path, deps.paths)
-    return { ok: true, action, expert: summarizeCard(card), path }
+    const target = await managePaths(deps, input)
+    const card = await importSkillFromPath(id, path, target.paths)
+    return { ok: true, action, library: target.library, expert: { ...summarizeCard(card), library: target.library }, path }
   }
   if (action === 'use') {
     const id = requireId(input.id)
-    const activation = await activateExpert(id, { ...deps, activate: true })
+    const target = await managePaths(deps, input)
+    const activation = await activateExpert(id, { ...deps, activate: true, library: target.library })
     if (!activation.activated) throw new ManageToolError('ACTIVATE_FAILED', activation.activateError || '启用失败')
-    return { ok: true, action, expert: { id }, result: activation.result }
+    return { ok: true, action, library: target.library, expert: { id, library: target.library }, result: activation.result }
   }
   throw new ManageToolError(
     'ACTION_INVALID',
@@ -601,12 +627,12 @@ export function renderManageResult(args, value) {
 }
 
 /** The expert_manage tool definition. */
-export function expertManageToolDefinition({ paths, switcher, logger }) {
+export function expertManageToolDefinition({ paths, switcher, resolveProjectPaths, logger }) {
   const warn = logger?.warn ?? (() => {})
   return {
     name: 'expert_manage',
     description:
-      '查看和修改 DSH 专家库：列出专家、读取某位专家的角色提示词与技能、创建专家、修改显示名/职业/角色提示词/技能、单独添加或删除技能、从本机目录导入技能、或在当前会话启用专家。用户说“改一下某专家的提示词/加个技能/删掉这个技能/新建专家/让我用某专家”时使用；新建或大改专家前先调用 action="guide" 读取《专家创作规范》，按规范生成 role.md 与 skill。网页来源的整专家导入请用 expert_import；删除专家请让用户在设置页操作。修改当前正在使用的专家后传 activate=true 可立即刷新。',
+      '查看和修改 DSH 专家库（全局专家或当前项目专家）：列出专家、读取某位专家的角色提示词与技能、创建专家、修改显示名/职业/角色提示词/技能、单独添加或删除技能、从本机目录导入技能、或在当前会话启用专家。默认操作全局专家；library="project" 时操作当前会话项目内的 `.dsh/experts`。用户说“改一下某专家的提示词/加个技能/删掉这个技能/新建专家/让我用某专家”时使用；新建或大改专家前先调用 action="guide" 读取《专家创作规范》，按规范生成 role.md 与 skill。网页来源的整专家导入请用 expert_import；删除专家请让用户在设置页操作。修改当前正在使用的专家后传 activate=true 可立即刷新。',
     parameters: {
       type: 'object',
       properties: {
@@ -614,6 +640,11 @@ export function expertManageToolDefinition({ paths, switcher, logger }) {
           type: 'string',
           enum: ['guide', 'list', 'get', 'create', 'update', 'add_skill', 'remove_skill', 'import_skill', 'use'],
           description: 'guide=读取专家创作规范（新建/大改前先调用）；list=列出已安装专家；get=读取详情；create=新建；update=改资料/角色/技能树；add_skill/remove_skill=单个技能；import_skill=从本机路径导入；use=在当前会话启用。',
+        },
+        library: {
+          type: 'string',
+          enum: ['global', 'project'],
+          description: '专家库：global=全局专家（默认，~/.dsh/experts）；project=当前会话项目专家（<项目>/.dsh/experts）。',
         },
         id: { type: 'string', description: '专家 id（list/get/update/add_skill/remove_skill/import_skill/use 必填）。' },
         expert: {
@@ -683,7 +714,7 @@ export function expertManageToolDefinition({ paths, switcher, logger }) {
     async execute(args, exec) {
       try {
         const sessionId = exec?.agent?.id !== undefined ? String(exec.agent.id) : undefined
-        return await runExpertManage(args, { paths, switcher, sessionId })
+        return await runExpertManage(args, { paths, switcher, resolveProjectPaths, sessionId })
       } catch (error) {
         if (error instanceof ManageToolError) {
           warn(`expert_manage 失败：${error.message}`)

@@ -9,7 +9,8 @@
  */
 
 import { homedir } from 'node:os'
-import { isAbsolute, join, relative, resolve, sep } from 'node:path'
+import { lstat, realpath, stat } from 'node:fs/promises'
+import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 
 /** Expand a leading `~`/`~/` against the OS home; anything else passes through. */
 export function expandHome(value) {
@@ -34,12 +35,62 @@ export function createPaths({ dshHome, sourcePath }) {
   const root = join(home, 'experts')
   const rawSource = typeof sourcePath === 'string' && sourcePath.trim() !== '' ? sourcePath.trim() : ''
   return {
+    scope: 'global',
+    projectRoot: '',
     dshHome: home,
     expertsRoot: root,
     stateDir: join(home, 'expert-hub'),
     stateFile: join(home, 'expert-hub', 'state.json'),
     sourcePath: rawSource,
     sourceDir: expandHome(rawSource),
+  }
+}
+
+/**
+ * Resolve project-level expert paths. Project experts live beside project
+ * skills under `<project>/.dsh/experts`, so they travel with the repository.
+ *
+ * @param {object} base - global createPaths() result
+ * @param {string} projectRoot
+ */
+export function projectPaths(base, projectRoot) {
+  const root = resolve(projectRoot)
+  return {
+    ...base,
+    scope: 'project',
+    projectRoot: root,
+    expertsRoot: join(root, '.dsh', 'experts'),
+    stateDir: join(root, '.dsh', 'expert-hub'),
+  }
+}
+
+/**
+ * Find the project root for one session's working directory: the nearest
+ * ancestor that contains `.git`, otherwise the directory itself. Mirrors the
+ * project-skill convention used by DSH skill sources.
+ *
+ * @param {string} cwd
+ * @returns {Promise<string|undefined>}
+ */
+export async function findProjectRoot(cwd) {
+  if (typeof cwd !== 'string' || cwd.trim() === '' || !isAbsolute(cwd)) return undefined
+  let start
+  try {
+    start = await realpath(resolve(cwd))
+    if (!(await stat(start)).isDirectory()) return undefined
+  } catch {
+    return undefined
+  }
+  let current = start
+  for (;;) {
+    try {
+      await lstat(join(current, '.git'))
+      return current
+    } catch {
+      const parent = dirname(current)
+      if (parent === current) return start
+      current = parent
+    }
   }
 }
 

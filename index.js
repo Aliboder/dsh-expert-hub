@@ -16,7 +16,7 @@
 
 import { registerExpertCommand } from './src/command.js'
 import { disposeStaleCompositions } from './src/compose.js'
-import { createPaths } from './src/paths.js'
+import { createPaths, findProjectRoot, projectPaths } from './src/paths.js'
 import { createRoutes } from './src/routes.js'
 import { openSelections } from './src/selections.js'
 import { createSwitcher } from './src/switch.js'
@@ -69,10 +69,44 @@ export async function apply(ctx, config = {}) {
   }
 
   let routes
+
+  /** Effective working directory of one session, tolerant of host shapes. */
+  function workingDirectoryOf(sessionId) {
+    const agent = resolveAgent(sessionId)
+    if (agent === undefined || agent === null) return undefined
+    const service = typeof ctx.get === 'function' ? ctx.get('workingDirectory') : undefined
+    if (service !== undefined && typeof service.get === 'function') {
+      try {
+        const dir = service.get(agent.session ?? agent)
+        if (typeof dir === 'string' && dir !== '') return dir
+      } catch {
+        // Fall through to the shapes carried directly on the agent.
+      }
+    }
+    const session = agent.session ?? agent
+    const candidates = [
+      session?.cwd,
+      session?.header?.cwd,
+      session?.meta?.cwd,
+      agent.cwd,
+    ]
+    return candidates.find((value) => typeof value === 'string' && value !== '')
+  }
+
+  /** Resolve project-level expert paths for one session (undefined outside a project). */
+  async function resolveProjectPaths(sessionId) {
+    if (typeof sessionId !== 'string' || sessionId === '') return undefined
+    const cwd = workingDirectoryOf(sessionId)
+    if (cwd === undefined) return undefined
+    const root = await findProjectRoot(cwd)
+    return root === undefined ? undefined : projectPaths(paths, root)
+  }
+
   const switcher = createSwitcher({
     paths,
     selections,
     resolveAgent,
+    resolvePaths: (_sessionId, scope) => scope === 'project' ? resolveProjectPaths(_sessionId) : Promise.resolve(paths),
     logger: { warn },
     onChange: () => routes?.bump?.(),
   })
@@ -113,6 +147,7 @@ export async function apply(ctx, config = {}) {
     paths,
     switcher,
     selections,
+    resolveProjectPaths,
     ensureApplied: (sessionId) => switcher.ensureApplied(sessionId),
     diagnostics,
     logger: { warn },
@@ -171,7 +206,7 @@ export async function apply(ctx, config = {}) {
   // gets the registration.
   ctx.inject(['tools'], (toolsCtx) => {
     ctx.effect(
-      () => registerExpertTools(toolsCtx, { paths, switcher, logger: { warn } }),
+      () => registerExpertTools(toolsCtx, { paths, switcher, resolveProjectPaths, logger: { warn } }),
       'dsh-expert-hub:tools',
     )
   })

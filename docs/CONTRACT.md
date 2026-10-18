@@ -126,27 +126,29 @@ body 上限 1 MiB（头像单独 8 MiB）。
 
 | # | 方法 | 路径 | 入参 | 出参 |
 |---|------|------|------|------|
-| 1 | GET | `/state?sessionId=` | — | `{ ok, revision, config:{ sourcePath, sourceExists, expertsRoot }, counts:{ installed, available, updatable }, installed:Card[], available:Card[], warnings:string[], session?:SessionState }` |
-| 2 | GET | `/detail?id=&scope=installed\|workbuddy` | — | `{ ok, card:Card, roleText, skills:[{name, description, content}] , meta:{ sourcePath?, agentFile? } }` |
-| 3 | GET | `/avatar?id=&scope=installed\|workbuddy` | — | 图片字节（png/jpg/webp）；找不到统一 404 |
-| 4 | POST | `/switch` | `{ sessionId, expertId: string \| null }` | `{ ok, session:SessionState }` |
+| 1 | GET | `/state?sessionId=` | — | `{ ok, revision, config:{ sourcePath, sourceExists, expertsRoot }, counts:{ installed, project, available, updatable }, installed:Card[], project:Card[], available:Card[], warnings:string[], session?:SessionState }`；`project` 需要 sessionId 且能解析项目根 |
+| 2 | GET | `/detail?id=&scope=installed\|workbuddy&library=global\|project&sessionId=` | — | `{ ok, card:Card, roleText, skills:[{name, description, content}] , meta:{ sourcePath?, agentFile? } }` |
+| 3 | GET | `/avatar?id=&scope=installed\|workbuddy&library=&sessionId=` | — | 图片字节（png/jpg/webp）；找不到统一 404 |
+| 4 | POST | `/switch` | `{ sessionId, expertId: string \| null, library?: global\|project }` | `{ ok, session:SessionState }`；SessionState 带 `library` |
 | 5 | POST | `/refresh` | `{}` | `{ ok, revision, counts }` |
-| 6 | POST | `/import` | `{ ids: string[] }` | `{ ok, imported:{id,dir}[], failed:{id,error}[] }`；已安装的 id 走"更新"（覆盖为源内容），自建专家不会被覆盖 |
-| 7 | POST | `/import-path` | `{ path: string }` | `{ ok, experts:Card[], imported:{id,dir}[] , warnings:string[] }` |
-| 8 | POST | `/create` | `{ expert:{ id?, displayName, description, profession?, tags?, roleText, category?, skills?: [{name,content}], skillPaths?: string[] }, avatarDataUrl? }` | `{ ok, expert:Card }`；内联 skills 与 `skillPaths` 会在同一事务里写入，任一技能导入失败则回滚整个创建 |
-| 9 | POST | `/update` | `{ id, patch:{ displayName?, description?, profession?, tags?, quickPrompts?, skills?: [{name,content}] }, roleText?, avatarDataUrl? }` | `{ ok, expert:Card }`；`skills` 存在时整树替换（保留未改名技能目录里的资源文件） |
-| 10 | POST | `/delete` | `{ id }` | `{ ok }`；软删除到回收站 |
+| 6 | POST | `/import` | `{ ids: string[], library?, sessionId? }` | `{ ok, imported:{id,dir}[], failed:{id,error}[] }`；已安装的 id 走"更新"（覆盖为源内容），自建专家不会被覆盖 |
+| 7 | POST | `/import-path` | `{ path: string, library?, sessionId? }` | `{ ok, experts:Card[], imported:{id,dir}[] , warnings:string[] }` |
+| 8 | POST | `/create` | `{ expert:{ id?, displayName, description, profession?, tags?, roleText, category?, skills?: [{name,content}], skillPaths?: string[] }, avatarDataUrl?, library?, sessionId? }` | `{ ok, expert:Card }`；内联 skills 与 `skillPaths` 会在同一事务里写入，任一技能导入失败则回滚整个创建 |
+| 9 | POST | `/update` | `{ id, library?, sessionId?, patch:{ displayName?, description?, profession?, tags?, quickPrompts?, skills?: [{name,content}] }, roleText?, avatarDataUrl? }` | `{ ok, expert:Card }`；`skills` 存在时整树替换（保留未改名技能目录里的资源文件） |
+| 10 | POST | `/delete` | `{ id, library?, sessionId? }` | `{ ok }`；软删除到对应范围的回收站 |
 | 11 | GET | `/events` | — | `text/event-stream`；事件 `state`，data 为 `{ revision }`；每 25s 一行 `: ping` |
 | 12 | GET | `/diagnostics?sessionId=` | — | 只读诊断：`{ ok, agents:[{sessionId,status}], skills:[{name,description,provider,source}], expert? }`；用于确认专家与技能是否真的注册到某个 agent 作用域 |
-| 13 | GET | `/trash` | — | `{ ok, items:[{name, id, displayName, deletedAt}] }` |
-| 14 | POST | `/restore-trash` | `{ name }` | `{ ok, expert:Card }`；目标 id 已存在时拒绝 |
-| 15 | POST | `/skill-import` | `{ id, path }` | `{ ok, expert:Card }`；path 支持技能目录 / 多个技能的父目录 / 单个 `.md` |
-| 16 | POST | `/purge-trash` | `{ name }` | `{ ok, name }`；永久删除回收站条目，不可恢复；路径穿越类 name 拒绝 |
+| 13 | GET | `/trash?library=&sessionId=` | — | `{ ok, library, items:[{name, id, displayName, deletedAt}] }` |
+| 14 | POST | `/restore-trash` | `{ name, library?, sessionId? }` | `{ ok, expert:Card }`；目标 id 已存在时拒绝 |
+| 15 | POST | `/skill-import` | `{ id, path, library?, sessionId? }` | `{ ok, expert:Card }`；path 支持技能目录 / 多个技能的父目录 / 单个 `.md` |
+| 16 | POST | `/purge-trash` | `{ name, library?, sessionId? }` | `{ ok, name }`；永久删除回收站条目，不可恢复；路径穿越类 name 拒绝 |
 
 > 网页 URL 导入已移除：网页/在线内容改由模型工具 `expert_import`（§12）读取并整理，
 > 用户不再需要自己填写网址。`importers.js` 仍为工具读取压缩包/本机目录服务。
 
 `scope` 缺省 `installed`。`available`（WorkBuddy 市场）用 `scope=workbuddy`。
+`library` 缺省 `global`；`library=project` 时按 `sessionId` 解析当前项目根（最近含 `.git` 的祖先，
+否则工作目录），读写 `<项目根>/.dsh/experts` 与 `<项目根>/.dsh/expert-hub/trash`。
 
 ## 8. 示例
 
@@ -273,6 +275,10 @@ type ExpertImportArgs = {
 | `remove_skill` | `id`, `name` | 删除单个技能 |
 | `import_skill` | `id`, `path` | 从本机技能目录 / 父目录 / 单个 `.md` 导入 |
 | `use` | `id` | 在当前会话启用该专家 |
+
+所有 action 都接受可选 `library: "global" | "project"`（默认 global）。`project` 需要当前会话能解析项目根，
+用于读写 `<项目根>/.dsh/experts`。`list/get/create/update/add_skill/remove_skill/import_skill/use`
+都按该库执行；`use` 与 `create/update` 的 `activate` 会把 `library` 一并传给会话选择。
 
 `create` / `update` 支持 `activate: true`：写入后立即在当前会话启用或刷新；
 当前专家被修改后建议 `activate:true`，否则旧的角色/技能组合会保持到下次切换。
