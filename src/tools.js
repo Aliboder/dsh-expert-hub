@@ -18,7 +18,7 @@
 
 import { join } from 'node:path'
 
-import { createExpert, importSkillFromPath, updateExpert } from './author.js'
+import { createExpert, importSkillFromPath, moveExpert, updateExpert } from './author.js'
 import { ID_RE, excerptOf, sanitizeRoleText, slugify } from './format.js'
 import { installDraft, installedState, readInstalledDetail, scanInstalled } from './store.js'
 import { categoryLabelOf } from './workbuddy.js'
@@ -431,7 +431,7 @@ async function activateExpert(id, deps) {
     return { activated: false, activateError: '当前环境不支持会话内启用' }
   }
   try {
-    const result = await deps.switcher.switchTo(deps.sessionId, id, deps.library === 'project' ? 'project' : 'global')
+    const result = await deps.switcher.switchTo(deps.sessionId, id, deps.library === 'project' ? 'project' : 'global', deps.workspace ?? '')
     return { activated: true, activateError: '', result }
   } catch (error) {
     return { activated: false, activateError: error instanceof Error ? error.message : String(error) }
@@ -441,15 +441,16 @@ async function activateExpert(id, deps) {
 /** Resolve the library root for one expert_manage call. */
 async function managePaths(deps, input) {
   const library = input?.library === 'project' ? 'project' : 'global'
-  if (library === 'global') return { paths: deps.paths, library }
-  if (typeof deps.resolveProjectPaths !== 'function' || !deps.sessionId) {
+  const workspace = typeof input?.workspace === 'string' ? input.workspace : ''
+  if (library === 'global') return { paths: deps.paths, library, workspace: '' }
+  if (typeof deps.resolveProjectPaths !== 'function') {
     throw new ManageToolError('NO_PROJECT', '当前会话没有项目目录，无法使用项目级专家')
   }
-  const scoped = await deps.resolveProjectPaths(deps.sessionId)
+  const scoped = await deps.resolveProjectPaths(deps.sessionId ?? '', workspace)
   if (scoped === undefined || scoped === null) {
     throw new ManageToolError('NO_PROJECT', '当前会话没有项目目录，无法使用项目级专家')
   }
-  return { paths: scoped, library }
+  return { paths: scoped, library, workspace: workspace || scoped.projectRoot || '' }
 }
 
 /**
@@ -472,6 +473,46 @@ export async function runExpertManage(args, deps) {
         '技能名是否 kebab-case，SKILL.md 是否有 name/description frontmatter？',
         '是否写入后向用户说明如何启用？',
       ],
+    }
+  }
+  if (action === 'workspaces') {
+    const workspaces = typeof deps.listWorkspaces === 'function' ? await deps.listWorkspaces() : []
+    return {
+      ok: true,
+      action,
+      workspaces: Array.isArray(workspaces) ? workspaces : [],
+      hints: ['迁移到项目时，把目标工作区的 path 作为 targetWorkspace 传入。'],
+    }
+  }
+  if (action === 'migrate') {
+    const id = textOf(input.id)
+    if (id === '') throw new ManageToolError('MISSING_ID', '缺少专家 id')
+    const targetLibrary = input.targetLibrary === 'project' ? 'project' : 'global'
+    const targetWorkspace = typeof input.targetWorkspace === 'string' ? input.targetWorkspace : ''
+    const from = await managePaths(deps, input)
+    if (from.library === targetLibrary && (targetLibrary !== 'project' || from.workspace === targetWorkspace)) {
+      throw new ManageToolError('SAME_LIBRARY', '源和目标位置相同')
+    }
+    let toPaths = deps.paths
+    if (targetLibrary === 'project') {
+      if (typeof deps.resolveProjectPaths !== 'function') {
+        throw new ManageToolError('NO_PROJECT', '当前环境不支持项目级专家')
+      }
+      toPaths = await deps.resolveProjectPaths(deps.sessionId ?? '', targetWorkspace)
+      if (toPaths === undefined || toPaths === null) {
+        throw new ManageToolError('NO_PROJECT', '未找到目标工作区，请先用 action=workspaces 查询 workspace 路径')
+      }
+    }
+    const card = await moveExpert(id, from.paths, toPaths)
+    return {
+      ok: true,
+      action,
+      expert: { ...summarizeCard(card), library: targetLibrary },
+      fromLibrary: from.library,
+      toLibrary: targetLibrary,
+      fromWorkspace: from.workspace,
+      toWorkspace: targetLibrary === 'project' ? (toPaths.projectRoot ?? targetWorkspace) : '',
+      hints: ['迁移后请在目标范围的专家列表重新选择启用。'],
     }
   }
   if (action === 'list') {
@@ -606,6 +647,10 @@ export function renderManageResult(args, value) {
   switch (value.action) {
     case 'list':
       return `已安装 ${value.experts?.length ?? 0} 位专家${value.projectRoot ? `（项目：${value.projectRoot}）` : ''}：${(value.experts ?? []).map((item) => `${item.displayName}（${item.id}）`).join('、')}`
+    case 'workspaces':
+      return `已登记 ${value.workspaces?.length ?? 0} 个工作区：${(value.workspaces ?? []).map((item) => `${item.title}（${item.path}${item.available === false ? '，目录不可用' : ''}）`).join('、')}`
+    case 'migrate':
+      return `已把专家「${value.expert?.displayName ?? value.expert?.id ?? ''}」从 ${value.fromLibrary === 'project' ? `项目 ${value.fromWorkspace ?? ''}` : '全局'} 迁移到 ${value.toLibrary === 'project' ? `项目 ${value.toWorkspace ?? ''}` : '全局'}。`
     case 'guide':
       return '已返回《DSH 专家创作规范》。'
     case 'get':
@@ -628,24 +673,37 @@ export function renderManageResult(args, value) {
 }
 
 /** The expert_manage tool definition. */
-export function expertManageToolDefinition({ paths, switcher, resolveProjectPaths, logger }) {
+export function expertManageToolDefinition({ paths, switcher, resolveProjectPaths, listWorkspaces, logger }) {
   const warn = logger?.warn ?? (() => {})
   return {
     name: 'expert_manage',
     description:
-      '查看和修改 DSH 专家库（全局专家或当前项目专家）：列出专家、读取某位专家的角色提示词与技能、创建专家、修改显示名/职业/角色提示词/技能、单独添加或删除技能、从本机目录导入技能、或在当前会话启用专家。默认操作全局专家；library="project" 时操作当前会话项目内的 `.dsh/experts`。用户说“改一下某专家的提示词/加个技能/删掉这个技能/新建专家/让我用某专家”时使用；新建或大改专家前先调用 action="guide" 读取《专家创作规范》，按规范生成 role.md 与 skill。网页来源的整专家导入请用 expert_import；删除专家请让用户在设置页操作。修改当前正在使用的专家后传 activate=true 可立即刷新。',
+      '查看和修改 DSH 专家库（全局专家或项目专家）：列出专家、读取角色提示词与技能、创建/修改/删除技能、列出已登记工作区、或把专家在全局与项目之间迁移。默认操作全局专家；library="project" 时操作项目内的 `.dsh/experts`，可用 workspace 指定已登记工作区。用户说“改一下某专家的提示词/加个技能/删掉这个技能/新建专家/让我用某专家/把这个专家放到某个项目/迁移专家”时使用；新建或大改专家前先调用 action="guide"。迁移前可先用 action="workspaces" 查询工作区路径。',
     parameters: {
       type: 'object',
       properties: {
         action: {
           type: 'string',
-          enum: ['guide', 'list', 'get', 'create', 'update', 'add_skill', 'remove_skill', 'import_skill', 'use'],
-          description: 'guide=读取专家创作规范（新建/大改前先调用）；list=列出已安装专家；get=读取详情；create=新建；update=改资料/角色/技能树；add_skill/remove_skill=单个技能；import_skill=从本机路径导入；use=在当前会话启用。',
+          enum: ['guide', 'list', 'get', 'create', 'update', 'add_skill', 'remove_skill', 'import_skill', 'use', 'workspaces', 'migrate'],
+          description: 'guide=创作规范；list=列出专家；get=读取详情；create/update/add_skill/remove_skill/import_skill=编辑；use=会话启用；workspaces=列出 DSH 已登记工作区；migrate=在全局/项目之间迁移专家。',
         },
         library: {
           type: 'string',
           enum: ['global', 'project'],
-          description: '专家库：global=全局专家（默认，~/.dsh/experts）；project=当前会话项目专家（<项目>/.dsh/experts）。',
+          description: '专家库：global=全局专家（默认，~/.dsh/experts）；project=项目专家（<项目>/.dsh/experts）。',
+        },
+        workspace: {
+          type: 'string',
+          description: '源项目工作区路径；library="project" 时用于指定已登记工作区，省略则用当前会话项目。',
+        },
+        targetLibrary: {
+          type: 'string',
+          enum: ['global', 'project'],
+          description: 'migrate 使用：目标库，global 或 project。',
+        },
+        targetWorkspace: {
+          type: 'string',
+          description: 'migrate 且 targetLibrary="project" 时使用：目标工作区路径，先用 action=workspaces 查询。',
         },
         id: { type: 'string', description: '专家 id（list/get/update/add_skill/remove_skill/import_skill/use 必填）。' },
         expert: {
@@ -715,7 +773,7 @@ export function expertManageToolDefinition({ paths, switcher, resolveProjectPath
     async execute(args, exec) {
       try {
         const sessionId = exec?.agent?.id !== undefined ? String(exec.agent.id) : undefined
-        return await runExpertManage(args, { paths, switcher, resolveProjectPaths, sessionId })
+        return await runExpertManage(args, { paths, switcher, resolveProjectPaths, listWorkspaces, sessionId })
       } catch (error) {
         if (error instanceof ManageToolError) {
           warn(`expert_manage 失败：${error.message}`)

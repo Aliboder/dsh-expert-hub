@@ -111,6 +111,12 @@ window.__ModuleLoader__.load({
 .eh-workspace-select { min-width: 220px; max-width: 360px; }
 .eh-workspace-path { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   font-size: 11px; color: var(--dsw-alias-label-tertiary, inherit); }
+.eh-migrate-panel { margin-top: 12px; padding: 12px; border-radius: 10px;
+  border: 1px solid var(--dsw-alias-border-l2, rgba(128,128,128,.25));
+  background: var(--dsw-alias-bg-l2, rgba(128,128,128,.06));
+  display: flex; flex-direction: column; gap: 8px; }
+.eh-migrate-panel .eh-field { display: flex; flex-direction: column; gap: 4px; }
+.eh-migrate-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .eh-search-wrap { position: relative; flex: 1 1 230px; min-width: 170px; }
 .eh-search-icon { position: absolute; left: 9px; top: 50%; transform: translateY(-50%);
   font-size: 13px; line-height: 1; pointer-events: none; color: var(--dsw-alias-label-tertiary, inherit); }
@@ -787,6 +793,13 @@ window.__ModuleLoader__.load({
         'studio.unsaved': '未保存修改',
         'studio.delete': '删除专家',
         'studio.confirmDelete': '确认删除？',
+        'studio.migrateToProject': '迁移到项目',
+        'studio.migrateToGlobal': '迁移到全局',
+        'studio.migrateToProjectHint': '把这位全局专家整体移动到所选项目，之后只在那个项目里可见。',
+        'studio.migrateToGlobalHint': '把这位项目专家整体移动到全局专家库，所有项目都可使用。',
+        'studio.migrateConfirm': '确认迁移',
+        'studio.migrateCancel': '取消',
+        'studio.migrating': '迁移中…',
         'studio.sectionProfile': '基本资料',
         'trash.title': '回收站',
         'trash.hint': '删除的专家会先移到这里，可随时恢复。',
@@ -1023,6 +1036,13 @@ window.__ModuleLoader__.load({
         'studio.unsaved': 'Unsaved changes',
         'studio.delete': 'Delete expert',
         'studio.confirmDelete': 'Confirm delete?',
+        'studio.migrateToProject': 'Move to project',
+        'studio.migrateToGlobal': 'Move to global',
+        'studio.migrateToProjectHint': 'Move this global expert into the selected project. It will only appear there.',
+        'studio.migrateToGlobalHint': 'Move this project expert into the global library so every project can use it.',
+        'studio.migrateConfirm': 'Move',
+        'studio.migrateCancel': 'Cancel',
+        'studio.migrating': 'Moving…',
         'studio.sectionProfile': 'Profile',
         'trash.title': 'Trash',
         'trash.hint': 'Deleted experts are moved here first and can be restored.',
@@ -2904,6 +2924,18 @@ window.__ModuleLoader__.load({
       var library = props.library === 'project' || strOf(card.library) === 'project' ? 'project' : 'global'
       var sessionId = strOf(props.sessionId)
       var workspace = strOf(props.workspace)
+      var migrateOpenState = React.useState(false)
+      var migrateOpen = migrateOpenState[0]
+      var setMigrateOpen = migrateOpenState[1]
+      var migrateWorkspaceState = React.useState('')
+      var migrateWorkspace = migrateWorkspaceState[0]
+      var setMigrateWorkspace = migrateWorkspaceState[1]
+      var migrateBusyState = React.useState(false)
+      var migrateBusy = migrateBusyState[0]
+      var setMigrateBusy = migrateBusyState[1]
+      var migrateErrorState = React.useState('')
+      var migrateError = migrateErrorState[0]
+      var setMigrateError = migrateErrorState[1]
 
       var phaseState = React.useState('loading')
       var phase = phaseState[0]
@@ -3223,6 +3255,58 @@ window.__ModuleLoader__.load({
         notice !== '' ? el('div', { className: 'eh-notice', 'data-kind': 'ok', role: 'status' }, notice) : null,
         formError !== '' ? el('p', { className: 'eh-form-error', role: 'alert' }, formError) : null)
 
+      var projectWorkspaces = arrOf(props.workspaces).filter(function (item) {
+        return item !== null && typeof item === 'object' && item.available !== false
+      })
+      var migrateTargetLibrary = library === 'global' ? 'project' : 'global'
+      var fallbackWorkspace = strOf(props.workspace)
+      if (fallbackWorkspace === '' && projectWorkspaces.length > 0) fallbackWorkspace = strOf(projectWorkspaces[0].path)
+      var migrateTargetWorkspace = library === 'global'
+        ? (migrateWorkspace !== '' ? migrateWorkspace : fallbackWorkspace)
+        : ''
+      var migratePanel = migrateOpen && !readOnly
+        ? el('div', { className: 'eh-migrate-panel' },
+            el('p', { className: 'eh-hint' },
+              t(library === 'global' ? 'studio.migrateToProjectHint' : 'studio.migrateToGlobalHint')),
+            library === 'global'
+              ? el('label', { className: 'eh-field' },
+                  el('span', { className: 'eh-field-label' }, t('library.workspace')),
+                  el('select', {
+                    className: 'eh-select',
+                    value: migrateTargetWorkspace,
+                    'aria-label': t('library.workspace'),
+                    disabled: migrateBusy,
+                    onChange: function (event) { setMigrateWorkspace(event.target.value) }
+                  }, projectWorkspaces.length === 0
+                    ? [el('option', { key: 'none', value: '' }, t('library.noWorkspaces'))]
+                    : projectWorkspaces.map(function (item) {
+                        return el('option', { key: strOf(item.path), value: strOf(item.path) },
+                          strOf(item.title) + ' — ' + (strOf(item.projectRoot) || strOf(item.path)))
+                      })))
+              : null,
+            migrateError !== '' ? el('p', { className: 'eh-form-error', role: 'alert' }, migrateError) : null,
+            el('div', { className: 'eh-migrate-actions' },
+              el('button', {
+                className: 'eh-btn eh-btn-sm', type: 'button', disabled: migrateBusy,
+                onClick: function () { setMigrateOpen(false); setMigrateError('') }
+              }, t('studio.migrateCancel')),
+              el('button', {
+                className: 'eh-btn eh-btn-sm', type: 'button', 'data-variant': 'primary',
+                disabled: migrateBusy || (library === 'global' && migrateTargetWorkspace === ''),
+                onClick: function () {
+                  if (typeof props.onMigrate !== 'function') return
+                  setMigrateBusy(true)
+                  setMigrateError('')
+                  Promise.resolve(props.onMigrate(detailCard, migrateTargetLibrary, migrateTargetWorkspace))
+                    .catch(function (err) { setMigrateError(errorOf(err)) })
+                    .then(function () { setMigrateBusy(false) })
+                }
+              }, migrateBusy ? t('studio.migrating') : t('studio.migrateConfirm'))))
+        : null
+      if (migratePanel !== null) {
+        body = el('div', { className: 'eh-studio-body' }, body, migratePanel)
+      }
+
       var footer = []
       if (!readOnly) {
         footer.push(el('button', {
@@ -3233,6 +3317,13 @@ window.__ModuleLoader__.load({
         }, confirmDelete ? t('studio.confirmDelete') : t('studio.delete')))
       }
       footer.push(el('button', { key: 'close', className: 'eh-btn', type: 'button', onClick: props.onClose }, t('page.close')))
+      if (!readOnly && scope === 'installed') {
+        footer.push(el('button', {
+          key: 'migrate', className: 'eh-btn eh-btn-sm', type: 'button',
+          disabled: laneBusyNow() || migrateBusy,
+          onClick: function () { setMigrateOpen(!migrateOpen); setMigrateError('') }
+        }, t(library === 'global' ? 'studio.migrateToProject' : 'studio.migrateToGlobal')))
+      }
       if (readOnly) {
         footer.push(el('button', {
           key: 'import', className: 'eh-btn', type: 'button', 'data-variant': 'primary',
@@ -4231,6 +4322,21 @@ window.__ModuleLoader__.load({
         })
       }
 
+      function migrateExpert (card, targetLibrary, targetWorkspace) {
+        var fromLibrary = strOf(card.library) === 'project' ? 'project' : 'global'
+        return postJson(API_BASE + '/migrate', {
+          id: strOf(card.id),
+          library: fromLibrary,
+          workspace: fromLibrary === 'project' ? selectedWorkspace : '',
+          targetLibrary: targetLibrary,
+          targetWorkspace: targetLibrary === 'project' ? strOf(targetWorkspace) : '',
+          sessionId: sessionId
+        }).then(function () {
+          setDetail(null)
+          return Promise.all([pull(), loadTrash(), loadWorkspaces()])
+        })
+      }
+
       function saveEdit (card, payload) {
         setNotice(null)
         return postJson(API_BASE + '/update', {
@@ -4603,6 +4709,8 @@ window.__ModuleLoader__.load({
               library: detail.library !== undefined ? detail.library : strOf(detail.card.library),
               workspace: strOf(detail.workspace) !== '' ? strOf(detail.workspace) : selectedWorkspace,
               sessionId: sessionId,
+              workspaces: workspaces,
+              onMigrate: migrateExpert,
               laneBusy: laneBusy,
               onClose: function () { setDetail(null) },
               onUse: useInSession,

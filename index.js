@@ -262,7 +262,7 @@ export async function apply(ctx, config = {}) {
   // gets the registration.
   ctx.inject(['tools'], (toolsCtx) => {
     ctx.effect(
-      () => registerExpertTools(toolsCtx, { paths, switcher, resolveProjectPaths, logger: { warn } }),
+      () => registerExpertTools(toolsCtx, { paths, switcher, resolveProjectPaths, listWorkspaces, logger: { warn } }),
       'dsh-expert-hub:tools',
     )
   })

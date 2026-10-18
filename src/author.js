@@ -634,6 +634,46 @@ export async function updateExpert(id, patch, paths) {
 }
 
 /**
+ * Move one expert folder between the global and a project library (or between
+ * two project workspaces). The folder is kept intact; only its location moves.
+ * Cross-device moves fall back to copy + delete.
+ *
+ * @param {string} id
+ * @param {object} fromPaths
+ * @param {object} toPaths
+ */
+export async function moveExpert(id, fromPaths, toPaths) {
+  assertPaths(fromPaths)
+  assertPaths(toPaths)
+  const folderId = typeof id === 'string' ? id.trim() : ''
+  if (!ID_RE.test(folderId)) throw new Error(`专家 id 不合法：${JSON.stringify(id)}`)
+  const source = expertDirOf(fromPaths.expertsRoot, folderId)
+  const target = expertDirOf(toPaths.expertsRoot, folderId)
+  try {
+    await stat(source)
+  } catch {
+    throw new Error(`找不到专家：${folderId}`)
+  }
+  let targetExists = false
+  try {
+    await stat(target)
+    targetExists = true
+  } catch {
+    targetExists = false
+  }
+  if (targetExists) throw new Error(`目标位置已存在同名专家：${folderId}`)
+  await mkdir(toPaths.expertsRoot, { recursive: true })
+  try {
+    await rename(source, target)
+  } catch (error) {
+    if (error?.code !== 'EXDEV') throw error
+    await cp(source, target, { recursive: true })
+    await rm(source, { recursive: true, force: true })
+  }
+  return (await readInstalledDetail(toPaths, folderId)).card
+}
+
+/**
  * Delete one installed expert folder.
  *
  * @param {string} id

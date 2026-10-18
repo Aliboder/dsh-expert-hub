@@ -464,6 +464,38 @@ export function createRoutes({ paths, switcher, selections, resolveProjectPaths,
       await handleSourceImport(req, res, 'path')
       return
     }
+    if (path === '/migrate') {
+      const author = await import('./author.js')
+      const body = await readJsonBody(req, BODY_CAP)
+      const id = String(body.id ?? '')
+      const fromLibrary = libraryOf(body.library ?? 'global')
+      const toLibrary = libraryOf(body.targetLibrary ?? (fromLibrary === 'global' ? 'project' : 'global'))
+      const fromWorkspace = typeof body.workspace === 'string' ? body.workspace : ''
+      const toWorkspace = typeof body.targetWorkspace === 'string' ? body.targetWorkspace : ''
+      if (fromLibrary === toLibrary && fromWorkspace === toWorkspace) {
+        throw new HttpError(400, 'SAME_LIBRARY', '源和目标位置相同')
+      }
+      if (toLibrary === 'project' && toWorkspace === '') {
+        throw new HttpError(400, 'NO_TARGET_WORKSPACE', '迁移到项目时必须选择工作区')
+      }
+      const fromPaths = await scopedPathsFor(fromLibrary, body.sessionId ?? '', fromWorkspace)
+      const toPaths = await scopedPathsFor(toLibrary, body.sessionId ?? '', toWorkspace)
+      const expert = await author.moveExpert(id, fromPaths, toPaths)
+      // Drop a stale session selection that still points at the old location.
+      try {
+        const snapshot = selections.snapshot()
+        for (const [sessionId, entry] of Object.entries(snapshot.selections ?? {})) {
+          if (entry?.expertId !== id) continue
+          if (entry.library !== fromLibrary) continue
+          if (fromLibrary === 'project' && entry.workspace !== fromWorkspace) continue
+          try { switcher.release(sessionId) } catch { /* best effort */ }
+          selections.set(sessionId, null)
+        }
+      } catch { /* selection cleanup must not fail the move */ }
+      bump()
+      sendJson(res, 200, { ok: true, expert, fromLibrary, toLibrary, fromWorkspace, toWorkspace })
+      return
+    }
     if (path === '/create' || path === '/update' || path === '/delete') {
       await handleAuthor(req, res, path.slice(1))
       return

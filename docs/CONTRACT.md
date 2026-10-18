@@ -143,6 +143,7 @@ body 上限 1 MiB（头像单独 8 MiB）。
 | 15 | POST | `/skill-import` | `{ id, path, library?, sessionId? }` | `{ ok, expert:Card }`；path 支持技能目录 / 多个技能的父目录 / 单个 `.md` |
 | 16 | POST | `/purge-trash` | `{ name, library?, sessionId?, workspace? }` | `{ ok, name }`；永久删除回收站条目，不可恢复；路径穿越类 name 拒绝 |
 | 17 | GET | `/workspaces?sessionId=` | — | `{ ok, currentRoot, items:[{ id, title, path, available, projectRoot }] }`；供项目页工作区选择器使用 |
+| 18 | POST | `/migrate` | `{ id, library, workspace?, targetLibrary, targetWorkspace?, sessionId? }` | 把专家目录从全局/项目移动到另一个范围；目标同名存在时报错，不覆盖 |
 
 > 网页 URL 导入已移除：网页/在线内容改由模型工具 `expert_import`（§12）读取并整理，
 > 用户不再需要自己填写网址。`importers.js` 仍为工具读取压缩包/本机目录服务。
