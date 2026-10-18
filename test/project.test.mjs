@@ -7,7 +7,7 @@ import { mkdtemp, mkdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { createPaths, findProjectRoot, projectPaths } from '../src/paths.js'
+import { createPaths, findProjectRoot, pickWorkspaceRoot, projectPaths } from '../src/paths.js'
 import { createExpert } from '../src/author.js'
 import { scanInstalled } from '../src/store.js'
 import { runExpertManage } from '../src/tools.js'
@@ -23,6 +23,17 @@ try {
   assert.equal(scoped.expertsRoot, join(project, '.dsh', 'experts'))
   assert.equal(await findProjectRoot(project), project)
   assert.equal(await findProjectRoot(join(project, 'nested', 'dir')), project)
+
+  // DSH workspace registry wins over .git/cwd: exact session mapping first,
+  // then the longest workspace path containing the working directory.
+  assert.equal(pickWorkspaceRoot([
+    { path: join(project, 'other'), sessionIds: [] },
+    { path: join(project, 'nested'), sessionIds: ['session-project'] },
+  ], 'session-project', join(project, 'nested', 'dir')), join(project, 'nested'))
+  assert.equal(pickWorkspaceRoot([
+    { path: project, sessionIds: [] },
+    { path: join(project, 'nested'), sessionIds: [] },
+  ], 'unattached', join(project, 'nested', 'dir')), join(project, 'nested'))
 
   const card = await createExpert({ displayName: '项目专家', roleText: '# 项目专家\n\n只在项目里。' }, scoped)
   assert.ok(card.id.length > 0)

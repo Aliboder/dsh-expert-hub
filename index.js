@@ -16,7 +16,7 @@
 
 import { registerExpertCommand } from './src/command.js'
 import { disposeStaleCompositions } from './src/compose.js'
-import { createPaths, findProjectRoot, projectPaths } from './src/paths.js'
+import { createPaths, findProjectRoot, pickWorkspaceRoot, projectPaths } from './src/paths.js'
 import { createRoutes } from './src/routes.js'
 import { openSelections } from './src/selections.js'
 import { createSwitcher } from './src/switch.js'
@@ -93,9 +93,26 @@ export async function apply(ctx, config = {}) {
     return candidates.find((value) => typeof value === 'string' && value !== '')
   }
 
+  /** DSH workspace (项目) root that owns this session, when the registry knows it. */
+  function workspaceRootOf(sessionId) {
+    const registry = typeof ctx.get === 'function' ? ctx.get('workspaceRegistry') : undefined
+    if (registry === undefined || registry === null || typeof registry.list !== 'function') return undefined
+    let workspaces = []
+    try {
+      workspaces = registry.list()
+    } catch {
+      return undefined
+    }
+    return pickWorkspaceRoot(workspaces, sessionId, workingDirectoryOf(sessionId))
+  }
+
   /** Resolve project-level expert paths for one session (undefined outside a project). */
   async function resolveProjectPaths(sessionId) {
     if (typeof sessionId !== 'string' || sessionId === '') return undefined
+    // Prefer the DSH workspace registry: a workspace may be a plain folder
+    // without `.git`, and its root can be above the session's working directory.
+    const workspaceRoot = workspaceRootOf(sessionId)
+    if (workspaceRoot !== undefined) return projectPaths(paths, workspaceRoot)
     const cwd = workingDirectoryOf(sessionId)
     if (cwd === undefined) return undefined
     const root = await findProjectRoot(cwd)

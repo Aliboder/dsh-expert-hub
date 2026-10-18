@@ -65,6 +65,34 @@ export function projectPaths(base, projectRoot) {
 }
 
 /**
+ * Pick the DSH workspace root that owns a session. Prefers a workspace whose
+ * `sessionIds` contains the session; falls back to the longest workspace path
+ * containing the session working directory.
+ *
+ * @param {Array<{ path?: string, sessionIds?: string[] }>} workspaces
+ * @param {string} sessionId
+ * @param {string} [cwd]
+ * @returns {string|undefined}
+ */
+export function pickWorkspaceRoot(workspaces, sessionId, cwd) {
+  if (!Array.isArray(workspaces)) return undefined
+  const exact = workspaces.find((workspace) =>
+    Array.isArray(workspace?.sessionIds) && workspace.sessionIds.includes(sessionId))
+  if (exact !== undefined && typeof exact.path === 'string' && exact.path !== '') return exact.path
+  if (typeof cwd !== 'string' || cwd === '') return undefined
+  const normalize = (value) => String(value).replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
+  const current = normalize(cwd)
+  let best = ''
+  for (const workspace of workspaces) {
+    if (typeof workspace?.path !== 'string' || workspace.path === '') continue
+    const base = normalize(workspace.path)
+    if (base === '' || (current !== base && !current.startsWith(`${base}/`))) continue
+    if (base.length > best.length) best = workspace.path
+  }
+  return best === '' ? undefined : best
+}
+
+/**
  * Find the project root for one session's working directory: the nearest
  * ancestor that contains `.git`, otherwise the directory itself. Mirrors the
  * project-skill convention used by DSH skill sources.

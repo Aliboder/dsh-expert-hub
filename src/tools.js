@@ -481,6 +481,7 @@ export async function runExpertManage(args, deps) {
       ok: true,
       action,
       library: target.library,
+      projectRoot: target.paths.projectRoot ?? '',
       experts: state.cards.map((card) => ({ ...summarizeCard(card), library: target.library })),
       hints: ['用 action=get 读取某位专家的角色提示词与技能；用 update / add_skill / remove_skill 修改。'],
     }
@@ -604,7 +605,7 @@ export function renderManageResult(args, value) {
   const name = value.expert?.displayName ?? value.expert?.id ?? ''
   switch (value.action) {
     case 'list':
-      return `已安装 ${value.experts?.length ?? 0} 位专家：${(value.experts ?? []).map((item) => `${item.displayName}（${item.id}）`).join('、')}`
+      return `已安装 ${value.experts?.length ?? 0} 位专家${value.projectRoot ? `（项目：${value.projectRoot}）` : ''}：${(value.experts ?? []).map((item) => `${item.displayName}（${item.id}）`).join('、')}`
     case 'guide':
       return '已返回《DSH 专家创作规范》。'
     case 'get':

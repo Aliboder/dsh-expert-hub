@@ -1,6 +1,6 @@
 {
   "name": "dsh-expert-hub",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "type": "module",
   "description": "Expert center for DeepSeek Harness: browse and import WorkBuddy experts, create experts with AI, scope them globally or per project, edit role.md and skills, and switch experts per session. · DSH 专家中心：全局/项目专家、WorkBuddy 市场、AI 创建专家、详情即编辑、技能管理、按会话切换。",
   "license": "MIT",

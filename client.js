@@ -1489,10 +1489,11 @@ window.__ModuleLoader__.load({
           onError: function () { setFailed(true) }
         })
       }
+      var glyph = firstGlyph(nameOf(card))
       return el('span', {
         className: props.glyphClassName !== undefined ? props.glyphClassName : props.className,
         'aria-hidden': 'true'
-      }, firstGlyph(nameOf(card)))
+      }, glyph !== '' ? glyph : el(Icon, { name: 'user', size: 16 }))
     }
 
     /** Inline SVG icon set — replaces emoji glyphs in the UI. */

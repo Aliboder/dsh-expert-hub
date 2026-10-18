@@ -147,8 +147,9 @@ body 上限 1 MiB（头像单独 8 MiB）。
 > 用户不再需要自己填写网址。`importers.js` 仍为工具读取压缩包/本机目录服务。
 
 `scope` 缺省 `installed`。`available`（WorkBuddy 市场）用 `scope=workbuddy`。
-`library` 缺省 `global`；`library=project` 时按 `sessionId` 解析当前项目根（最近含 `.git` 的祖先，
-否则工作目录），读写 `<项目根>/.dsh/experts` 与 `<项目根>/.dsh/expert-hub/trash`。
+`library` 缺省 `global`；`library=project` 时按 `sessionId` 解析当前项目根：优先 DSH 工作区注册表里
+该会话所属 workspace，其次最近含 `.git` 的祖先，最后工作目录；读写 `<项目根>/.dsh/experts`
+与 `<项目根>/.dsh/expert-hub/trash`。
 
 ## 8. 示例
 
