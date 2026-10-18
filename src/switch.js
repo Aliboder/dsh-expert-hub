@@ -54,15 +54,15 @@ export function createSwitcher(options) {
   const onChange = options.onChange ?? (() => {})
 
   /** Resolve the storage paths for one library in one session. */
-  async function pathsFor(sessionId, library) {
+  async function pathsFor(sessionId, library, workspace = '') {
     if (library !== 'project') return paths
     if (typeof options.resolvePaths !== 'function') throw new Error('当前环境不支持项目级专家')
-    const scoped = await options.resolvePaths(sessionId, 'project')
+    const scoped = await options.resolvePaths(sessionId, 'project', workspace)
     if (scoped === undefined || scoped === null) throw new Error('当前会话没有项目目录，无法使用项目级专家')
     return scoped
   }
 
-  /** sessionId → { expertId, library, paths, composition, displayName } */
+  /** sessionId → { expertId, library, workspace, paths, composition, displayName } */
   const states = new Map()
   /** sessionId → tail promise (serial chain) */
   const chains = new Map()
@@ -86,11 +86,12 @@ export function createSwitcher(options) {
     const state = typeof sessionId === 'string' ? states.get(sessionId) : undefined
     const stored = typeof sessionId === 'string' ? selections.get(sessionId) : undefined
     const expertId = state?.expertId ?? stored?.expertId ?? null
-    if (expertId === null) return { sessionId, expertId: null, library: 'global', applied: false }
+    if (expertId === null) return { sessionId, expertId: null, library: 'global', workspace: '', applied: false }
     return {
       sessionId,
       expertId,
       library: state?.library ?? stored?.library ?? 'global',
+      workspace: state?.workspace ?? stored?.workspace ?? '',
       displayName: state?.displayName,
       applied: state !== undefined,
     }
@@ -109,7 +110,7 @@ export function createSwitcher(options) {
   }
 
   /** Compose `detail` onto `agent`, leaving `previous` recoverable on failure. */
-  async function recompose(agent, detail, sessionId, scopedPaths = paths) {
+  async function recompose(agent, detail, sessionId, scopedPaths = paths, workspace = '') {
     const previous = states.get(sessionId)
     disposeState(sessionId)
     try {
@@ -117,6 +118,7 @@ export function createSwitcher(options) {
       states.set(sessionId, {
         expertId: detail.card?.id ?? detail.id,
         library: scopedPaths.scope === 'project' ? 'project' : 'global',
+        workspace: scopedPaths.scope === 'project' ? (workspace || scopedPaths.projectRoot || '') : '',
         paths: scopedPaths,
         displayName: detail.card?.displayName,
         composition,
@@ -131,6 +133,7 @@ export function createSwitcher(options) {
           states.set(sessionId, {
             expertId: previousDetail.card?.id ?? previous.expertId,
             library: previous.library ?? 'global',
+            workspace: previous.workspace ?? '',
             paths: previous.paths ?? paths,
             displayName: previousDetail.card?.displayName,
             composition,
@@ -149,7 +152,7 @@ export function createSwitcher(options) {
    * @param {string} sessionId
    * @param {string|null} expertId - null clears the expert
    */
-  async function switchTo(sessionId, expertId, library = 'global') {
+  async function switchTo(sessionId, expertId, library = 'global', workspace = '') {
     if (typeof sessionId !== 'string' || sessionId === '') throw new Error('缺少会话 id')
     // Clearing is immediate: it must cancel any switch still waiting for the
     // current turn to finish, and it must never block behind that wait.
@@ -157,31 +160,33 @@ export function createSwitcher(options) {
       disposeState(sessionId)
       selections.set(sessionId, null)
       onChange()
-      return { sessionId, expertId: null, library: 'global', applied: true }
+      return { sessionId, expertId: null, library: 'global', workspace: '', applied: true }
     }
     const scope = library === 'project' ? 'project' : 'global'
-    const scopedPaths = await pathsFor(sessionId, scope)
+    const workspacePath = scope === 'project' && typeof workspace === 'string' ? workspace : ''
+    const scopedPaths = await pathsFor(sessionId, scope, workspacePath)
     return serialize(sessionId, async () => {
       const agent = resolveAgent(sessionId)
       const detail = await readInstalledDetail(scopedPaths, expertId)
       const displayName = detail.card?.displayName
       if (agent === undefined || agent === null) {
         // No live agent yet: remember the choice; restore() applies it later.
-        selections.set(sessionId, expertId, scope)
+        selections.set(sessionId, expertId, scope, workspacePath)
         onChange()
-        return { sessionId, expertId, library: scope, displayName, applied: false }
+        return { sessionId, expertId, library: scope, workspace: workspacePath, displayName, applied: false }
       }
       const same = states.get(sessionId)
-      if (same !== undefined && same.expertId === expertId && same.library === scope) {
-        selections.set(sessionId, expertId, scope)
+      if (same !== undefined && same.expertId === expertId && same.library === scope &&
+        (scope !== 'project' || same.workspace === workspacePath)) {
+        selections.set(sessionId, expertId, scope, workspacePath)
         onChange()
-        return { sessionId, expertId, library: scope, displayName, applied: true }
+        return { sessionId, expertId, library: scope, workspace: workspacePath, displayName, applied: true }
       }
       // A running turn keeps its current prompt until the boundary. Persist the
       // choice and let ONE waiter apply whatever is selected after idle: a newer
       // switch or a clear simply overwrites the selection the waiter reads.
       if (agent.status === 'running' && typeof agent.whenIdle === 'function') {
-        selections.set(sessionId, expertId, scope)
+        selections.set(sessionId, expertId, scope, workspacePath)
         onChange()
         if (!pending.has(sessionId)) {
           pending.add(sessionId)
@@ -193,9 +198,11 @@ export function createSwitcher(options) {
               const stored = selections.get(sessionId)
               const target = stored?.expertId
               if (target === null || target === undefined) return
-              const targetPaths = await pathsFor(sessionId, stored?.library === 'project' ? 'project' : 'global')
+              const targetLibrary = stored?.library === 'project' ? 'project' : 'global'
+              const targetWorkspace = typeof stored?.workspace === 'string' ? stored.workspace : ''
+              const targetPaths = await pathsFor(sessionId, targetLibrary, targetWorkspace)
               const latest = await readInstalledDetail(targetPaths, target)
-              await recompose(live, latest, sessionId, targetPaths)
+              await recompose(live, latest, sessionId, targetPaths, targetWorkspace)
               onChange()
             } catch (error) {
               warn(`排队切换专家失败：${error?.message ?? error}`)
@@ -204,13 +211,13 @@ export function createSwitcher(options) {
             }
           })().catch(() => {})
         }
-        return { sessionId, expertId, library: scope, displayName, applied: false, queued: true }
+        return { sessionId, expertId, library: scope, workspace: workspacePath, displayName, applied: false, queued: true }
       }
       await waitIdle(agent, logger)
-      await recompose(agent, detail, sessionId, scopedPaths)
-      selections.set(sessionId, expertId, scope)
+      await recompose(agent, detail, sessionId, scopedPaths, workspacePath)
+      selections.set(sessionId, expertId, scope, workspacePath)
       onChange()
-      return { sessionId, expertId, library: scope, displayName, applied: true }
+      return { sessionId, expertId, library: scope, workspace: workspacePath, displayName, applied: true }
     })
   }
 
@@ -226,12 +233,14 @@ export function createSwitcher(options) {
     if (stored === undefined || stored.expertId === null) return
     try {
       const library = stored.library === 'project' ? 'project' : 'global'
-      const scopedPaths = await pathsFor(sessionId, library)
+      const workspace = typeof stored.workspace === 'string' ? stored.workspace : ''
+      const scopedPaths = await pathsFor(sessionId, library, workspace)
       const detail = await readInstalledDetail(scopedPaths, stored.expertId)
       const composition = composeExpert(agent, detail, logger)
       states.set(sessionId, {
         expertId: detail.card?.id ?? stored.expertId,
         library,
+        workspace,
         paths: scopedPaths,
         displayName: detail.card?.displayName,
         composition,
@@ -273,7 +282,8 @@ export function createSwitcher(options) {
     // /state call would rewrite the selection on every poll.
     if (agent === undefined || agent === null || agent.status === 'running') return
     try {
-      await switchTo(sessionId, stored.expertId, stored.library === 'project' ? 'project' : 'global')
+      await switchTo(sessionId, stored.expertId, stored.library === 'project' ? 'project' : 'global',
+        typeof stored.workspace === 'string' ? stored.workspace : '')
     } catch (error) {
       warn(`恢复会话专家失败：${error?.message ?? error}`)
     }

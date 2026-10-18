@@ -23,10 +23,10 @@ try {
 
   let switched = null
   const switcher = {
-    current: () => ({ sessionId: 's1', expertId: projectExpert.id, library: 'project', applied: true }),
-    switchTo: async (sessionId, expertId, library) => {
-      switched = { sessionId, expertId, library }
-      return { sessionId, expertId, library, applied: true }
+    current: () => ({ sessionId: 's1', expertId: projectExpert.id, library: 'project', workspace: project, applied: true }),
+    switchTo: async (sessionId, expertId, library, workspace) => {
+      switched = { sessionId, expertId, library, workspace }
+      return { sessionId, expertId, library, workspace, applied: true }
     },
     forget: () => {},
     ensureApplied: async () => {},
@@ -35,7 +35,11 @@ try {
     paths,
     switcher,
     selections: { get: () => undefined, set: () => {}, remove: () => {} },
-    resolveProjectPaths: async () => scoped,
+    resolveProjectPaths: async (_sessionId, workspace) => (workspace === '' || workspace === project ? scoped : undefined),
+    listWorkspaces: async () => [
+      { id: 'ws1', title: '测试项目', path: project, available: true, projectRoot: project },
+      { id: 'ws2', title: '失效项目', path: join(project, 'missing'), available: false, projectRoot: join(project, 'missing') },
+    ],
     ensureApplied: async () => {},
     logger: { warn: () => {} },
   })
@@ -57,6 +61,16 @@ try {
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
   const base = `http://127.0.0.1:${server.address().port}/expert-hub`
 
+  const workspaces = await (await fetch(`${base}/workspaces?sessionId=s1`)).json()
+  assert.equal(workspaces.ok, true)
+  assert.equal(workspaces.items.length, 2)
+  assert.equal(workspaces.items[0].path, project)
+  assert.equal(workspaces.items[1].available, false)
+
+  const stateByWorkspace = await (await fetch(`${base}/state?sessionId=s1&workspace=${encodeURIComponent(project)}`)).json()
+  assert.equal(stateByWorkspace.ok, true)
+  assert.equal(stateByWorkspace.project.length, 1)
+
   const state = await (await fetch(`${base}/state?sessionId=s1`)).json()
   assert.equal(state.ok, true)
   assert.equal(state.installed.length, 0)
@@ -64,7 +78,7 @@ try {
   assert.equal(state.counts.project, 1)
   assert.equal(state.project[0].library, 'project')
 
-  const detail = await (await fetch(`${base}/detail?id=${projectExpert.id}&scope=installed&library=project&sessionId=s1`)).json()
+  const detail = await (await fetch(`${base}/detail?id=${projectExpert.id}&scope=installed&library=project&sessionId=s1&workspace=${encodeURIComponent(project)}`)).json()
   assert.equal(detail.ok, true)
   assert.match(detail.roleText, /路由测试/)
   assert.equal(detail.card.library, 'project')
@@ -72,10 +86,10 @@ try {
   const switchedResponse = await (await fetch(`${base}/switch`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ sessionId: 's1', expertId: projectExpert.id, library: 'project' }),
+    body: JSON.stringify({ sessionId: 's1', expertId: projectExpert.id, library: 'project', workspace: project }),
   })).json()
   assert.equal(switchedResponse.ok, true)
-  assert.deepEqual(switched, { sessionId: 's1', expertId: projectExpert.id, library: 'project' })
+  assert.deepEqual(switched, { sessionId: 's1', expertId: projectExpert.id, library: 'project', workspace: project })
 
   const trash = await (await fetch(`${base}/trash?library=project&sessionId=s1`)).json()
   assert.equal(trash.ok, true)

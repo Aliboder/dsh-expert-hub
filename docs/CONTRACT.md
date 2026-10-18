@@ -141,15 +141,16 @@ body 上限 1 MiB（头像单独 8 MiB）。
 | 13 | GET | `/trash?library=&sessionId=` | — | `{ ok, library, items:[{name, id, displayName, deletedAt}] }` |
 | 14 | POST | `/restore-trash` | `{ name, library?, sessionId? }` | `{ ok, expert:Card }`；目标 id 已存在时拒绝 |
 | 15 | POST | `/skill-import` | `{ id, path, library?, sessionId? }` | `{ ok, expert:Card }`；path 支持技能目录 / 多个技能的父目录 / 单个 `.md` |
-| 16 | POST | `/purge-trash` | `{ name, library?, sessionId? }` | `{ ok, name }`；永久删除回收站条目，不可恢复；路径穿越类 name 拒绝 |
+| 16 | POST | `/purge-trash` | `{ name, library?, sessionId?, workspace? }` | `{ ok, name }`；永久删除回收站条目，不可恢复；路径穿越类 name 拒绝 |
+| 17 | GET | `/workspaces?sessionId=` | — | `{ ok, currentRoot, items:[{ id, title, path, available, projectRoot }] }`；供项目页工作区选择器使用 |
 
 > 网页 URL 导入已移除：网页/在线内容改由模型工具 `expert_import`（§12）读取并整理，
 > 用户不再需要自己填写网址。`importers.js` 仍为工具读取压缩包/本机目录服务。
 
 `scope` 缺省 `installed`。`available`（WorkBuddy 市场）用 `scope=workbuddy`。
-`library` 缺省 `global`；`library=project` 时按 `sessionId` 解析当前项目根：优先 DSH 工作区注册表里
-该会话所属 workspace，其次最近含 `.git` 的祖先，最后工作目录；读写 `<项目根>/.dsh/experts`
-与 `<项目根>/.dsh/expert-hub/trash`。
+`library` 缺省 `global`；`library=project` 时按 `sessionId`/`workspace` 解析当前项目根：优先 DSH 工作区注册表里
+该会话所属 workspace 或显式 `workspace`（必须是已登记工作区路径），其次最近含 `.git` 的祖先，最后工作目录；
+读写 `<项目根>/.dsh/experts` 与 `<项目根>/.dsh/expert-hub/trash`。
 
 ## 8. 示例
 

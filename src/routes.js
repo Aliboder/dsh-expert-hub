@@ -68,7 +68,7 @@ function fail(res, error) {
  * @param {object} options.selections
  * @param {{warn?: (message: string) => void}} [options.logger]
  */
-export function createRoutes({ paths, switcher, selections, resolveProjectPaths, ensureApplied, diagnostics, logger = {} }) {
+export function createRoutes({ paths, switcher, selections, resolveProjectPaths, listWorkspaces, ensureApplied, diagnostics, logger = {} }) {
   const warn = logger.warn ?? (() => {})
   const clients = new Set()
   const runtime = { revision: 1, cache: undefined, cacheAt: 0 }
@@ -79,10 +79,10 @@ export function createRoutes({ paths, switcher, selections, resolveProjectPaths,
   }
 
   /** Storage paths for one request's library, resolving the session project. */
-  async function scopedPathsFor(library, sessionId) {
+  async function scopedPathsFor(library, sessionId, workspace = '') {
     if (library !== 'project') return paths
     if (typeof resolveProjectPaths !== 'function') throw new HttpError(400, 'NO_PROJECT_SUPPORT', '当前环境不支持项目级专家')
-    const scoped = await resolveProjectPaths(sessionId)
+    const scoped = await resolveProjectPaths(sessionId, typeof workspace === 'string' ? workspace : '')
     if (scoped === undefined || scoped === null) {
       throw new HttpError(400, 'NO_PROJECT', '当前会话没有项目目录，无法使用项目级专家')
     }
@@ -90,26 +90,27 @@ export function createRoutes({ paths, switcher, selections, resolveProjectPaths,
   }
 
   /** Add library/session info to cards so avatar requests can resolve the right root. */
-  function decorateCards(cards, library, sessionId) {
+  function decorateCards(cards, library, sessionId, workspace = '') {
     if (library !== 'project') return cards
     return cards.map((card) => ({
       ...card,
       library,
       avatarUrl: card.avatarUrl === ''
         ? ''
-        : `${card.avatarUrl}${card.avatarUrl.includes('?') ? '&' : '?'}sessionId=${encodeURIComponent(sessionId)}`,
+        : `${card.avatarUrl}${card.avatarUrl.includes('?') ? '&' : '?'}sessionId=${encodeURIComponent(sessionId)}${workspace !== '' ? `&workspace=${encodeURIComponent(workspace)}` : ''}`,
     }))
   }
 
-  /** Snapshot of the current session's project library (empty without a project). */
-  async function projectSnapshot(sessionId) {
-    const scoped = await scopedPathsFor('project', sessionId).catch(() => undefined)
-    if (scoped === undefined) return { cards: [], warnings: [], projectRoot: '' }
+  /** Snapshot of one session/workspace's project library. */
+  async function projectSnapshot(sessionId, workspace = '') {
+    const scoped = await scopedPathsFor('project', sessionId, workspace).catch(() => undefined)
+    if (scoped === undefined) return { cards: [], warnings: [], projectRoot: '', projectName: '' }
     const state = await installedState(scoped)
     return {
-      cards: decorateCards(state.cards, 'project', sessionId),
+      cards: decorateCards(state.cards, 'project', sessionId, workspace),
       warnings: state.warnings,
       projectRoot: scoped.projectRoot,
+      projectName: scoped.projectRoot.split(/[\\/]/).filter(Boolean).pop() ?? '',
     }
   }
 
@@ -155,7 +156,7 @@ export function createRoutes({ paths, switcher, selections, resolveProjectPaths,
   }
 
   /** Serialize one expert detail payload for the client. */
-  async function detailOf(id, scope, library = 'global', sessionId = '') {
+  async function detailOf(id, scope, library = 'global', sessionId = '', workspace = '') {
     if (!ID_RE.test(String(id ?? ''))) throw new HttpError(400, 'INVALID_ID', '专家 id 不合法')
     const kind = libraryOf(library)
     if (scope === 'workbuddy') {
@@ -174,9 +175,9 @@ export function createRoutes({ paths, switcher, selections, resolveProjectPaths,
         meta: { sourcePath: '', agentFile: draft.origin?.agentFile ?? '' },
       }
     }
-    const scoped = await scopedPathsFor(kind, sessionId)
+    const scoped = await scopedPathsFor(kind, sessionId, workspace)
     const detail = await readInstalledDetail(scoped, id)
-    const [card] = decorateCards([detail.card], kind, sessionId)
+    const [card] = decorateCards([detail.card], kind, sessionId, workspace)
     return { ok: true, ...detail, card, library: kind }
   }
 
@@ -187,7 +188,8 @@ export function createRoutes({ paths, switcher, selections, resolveProjectPaths,
     const scope = query.get('scope') ?? 'installed'
     const library = libraryOf(query.get('library') ?? 'global')
     const sessionId = query.get('sessionId') ?? ''
-    const storePaths = await scopedPathsFor(library, sessionId).catch(() => undefined)
+    const workspace = query.get('workspace') ?? ''
+    const storePaths = await scopedPathsFor(library, sessionId, workspace).catch(() => undefined)
     const file = scope === 'workbuddy'
       ? (await readAvailableDraft(paths, id).catch(() => undefined))?.avatar ?? null
       : storePaths === undefined ? null : await avatarFileOf(storePaths, id).catch(() => null)
@@ -214,7 +216,7 @@ export function createRoutes({ paths, switcher, selections, resolveProjectPaths,
   async function handleImport(req, res) {
     const body = await readJsonBody(req, BODY_CAP)
     const library = libraryOf(body.library ?? 'global')
-    const scoped = await scopedPathsFor(library, body.sessionId ?? '')
+    const scoped = await scopedPathsFor(library, body.sessionId ?? '', body.workspace ?? '')
     const ids = Array.isArray(body.ids) ? body.ids.filter((id) => ID_RE.test(String(id))).slice(0, MAX_IMPORT_IDS) : []
     if (ids.length === 0) throw new HttpError(400, 'NO_IDS', '没有要导入的专家')
     const imported = []
@@ -236,7 +238,7 @@ export function createRoutes({ paths, switcher, selections, resolveProjectPaths,
   async function handleSourceImport(req, res, kind) {
     const body = await readJsonBody(req, BODY_CAP_LARGE)
     const library = libraryOf(body.library ?? 'global')
-    const scoped = await scopedPathsFor(library, body.sessionId ?? '')
+    const scoped = await scopedPathsFor(library, body.sessionId ?? '', body.workspace ?? '')
     const source = kind === 'web' ? body.url : body.path
     if (typeof source !== 'string' || source.trim() === '') {
       throw new HttpError(400, 'NO_SOURCE', kind === 'web' ? '请填写专家包网址' : '请填写本机目录或 .md 文件路径')
@@ -292,7 +294,7 @@ export function createRoutes({ paths, switcher, selections, resolveProjectPaths,
     }
     const body = await readJsonBody(req, BODY_CAP_LARGE)
     const library = libraryOf(body.library ?? body.scope ?? 'global')
-    const scoped = await scopedPathsFor(library, body.sessionId ?? '')
+    const scoped = await scopedPathsFor(library, body.sessionId ?? '', body.workspace ?? '')
     if (action === 'create') {
       const input = { ...(body.expert ?? {}), avatarDataUrl: body.avatarDataUrl }
       const expert = await author.createExpert(input, scoped)
@@ -325,17 +327,27 @@ export function createRoutes({ paths, switcher, selections, resolveProjectPaths,
     const path = url.pathname.startsWith(PREFIX) ? url.pathname.slice(PREFIX.length) || '/' : url.pathname
     const method = req.method ?? 'GET'
 
+    if (method === 'GET' && path === '/workspaces') {
+      const items = typeof listWorkspaces === 'function' ? await listWorkspaces() : []
+      const sessionId = url.searchParams.get('sessionId') ?? ''
+      const currentRoot = typeof resolveProjectPaths === 'function' && sessionId !== ''
+        ? await resolveProjectPaths(sessionId).then((scoped) => scoped?.projectRoot ?? '').catch(() => '')
+        : ''
+      sendJson(res, 200, { ok: true, currentRoot, items })
+      return
+    }
     if (method === 'GET' && path === '/state') {
       const sessionId = url.searchParams.get('sessionId') ?? undefined
+      const workspace = url.searchParams.get('workspace') ?? ''
       if (typeof sessionId === 'string' && sessionId !== '' && typeof ensureApplied === 'function') {
         // Land a cold-session selection once the agent exists; never blocks
         // the snapshot response (the SSE `state` frame refreshes the client).
         void Promise.resolve(ensureApplied(sessionId)).catch(() => {})
       }
       const core = await snapshot()
-      const project = typeof sessionId === 'string' && sessionId !== ''
-        ? await projectSnapshot(sessionId)
-        : { cards: [], warnings: [], projectRoot: '' }
+      const project = (typeof sessionId === 'string' && sessionId !== '') || workspace !== ''
+        ? await projectSnapshot(sessionId ?? '', workspace)
+        : { cards: [], warnings: [], projectRoot: '', projectName: '' }
       sendJson(res, 200, {
         ok: true,
         revision: runtime.revision,
@@ -343,6 +355,8 @@ export function createRoutes({ paths, switcher, selections, resolveProjectPaths,
         installed: decorateCards(core.installed, 'global', ''),
         project: project.cards,
         projectRoot: project.projectRoot,
+        projectName: project.projectName,
+        workspace,
         warnings: [...(core.warnings ?? []), ...(project.warnings ?? [])],
         counts: {
           ...core.counts,
@@ -358,6 +372,7 @@ export function createRoutes({ paths, switcher, selections, resolveProjectPaths,
         url.searchParams.get('scope') ?? 'installed',
         url.searchParams.get('library') ?? 'global',
         url.searchParams.get('sessionId') ?? '',
+        url.searchParams.get('workspace') ?? '',
       ))
       return
     }
@@ -369,7 +384,8 @@ export function createRoutes({ paths, switcher, selections, resolveProjectPaths,
       const author = await import('./author.js')
       const library = libraryOf(url.searchParams.get('library') ?? 'global')
       const sessionId = url.searchParams.get('sessionId') ?? ''
-      const scoped = await scopedPathsFor(library, sessionId)
+      const workspace = url.searchParams.get('workspace') ?? ''
+      const scoped = await scopedPathsFor(library, sessionId, workspace)
       sendJson(res, 200, { ok: true, library, items: await author.listTrash(scoped) })
       return
     }
@@ -400,7 +416,7 @@ export function createRoutes({ paths, switcher, selections, resolveProjectPaths,
       if (sessionId === '') throw new HttpError(400, 'NO_SESSION', '缺少会话 id')
       const expertId = body.expertId === null || body.expertId === undefined ? null : String(body.expertId)
       const library = libraryOf(body.library ?? body.scope ?? 'global')
-      const session = await switcher.switchTo(sessionId, expertId, library)
+      const session = await switcher.switchTo(sessionId, expertId, library, body.workspace ?? '')
       bump()
       sendJson(res, 200, { ok: true, session })
       return
@@ -416,7 +432,7 @@ export function createRoutes({ paths, switcher, selections, resolveProjectPaths,
     if (path === '/restore-trash') {
       const author = await import('./author.js')
       const body = await readJsonBody(req, BODY_CAP)
-      const scoped = await scopedPathsFor(libraryOf(body.library ?? 'global'), body.sessionId ?? '')
+      const scoped = await scopedPathsFor(libraryOf(body.library ?? 'global'), body.sessionId ?? '', body.workspace ?? '')
       const expert = await author.restoreTrash(scoped, body.name)
       bump()
       sendJson(res, 200, { ok: true, expert })
@@ -425,7 +441,7 @@ export function createRoutes({ paths, switcher, selections, resolveProjectPaths,
     if (path === '/purge-trash') {
       const author = await import('./author.js')
       const body = await readJsonBody(req, BODY_CAP)
-      const scoped = await scopedPathsFor(libraryOf(body.library ?? 'global'), body.sessionId ?? '')
+      const scoped = await scopedPathsFor(libraryOf(body.library ?? 'global'), body.sessionId ?? '', body.workspace ?? '')
       const purged = await author.purgeTrash(scoped, body.name)
       bump()
       sendJson(res, 200, { ok: true, ...purged })
@@ -434,7 +450,7 @@ export function createRoutes({ paths, switcher, selections, resolveProjectPaths,
     if (path === '/skill-import') {
       const author = await import('./author.js')
       const body = await readJsonBody(req, BODY_CAP_LARGE)
-      const scoped = await scopedPathsFor(libraryOf(body.library ?? 'global'), body.sessionId ?? '')
+      const scoped = await scopedPathsFor(libraryOf(body.library ?? 'global'), body.sessionId ?? '', body.workspace ?? '')
       const expert = await author.importSkillFromPath(body.id, body.path, scoped)
       bump()
       sendJson(res, 200, { ok: true, expert })

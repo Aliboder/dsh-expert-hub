@@ -27,8 +27,9 @@ export function normalizeState(value) {
     if (entry === null || typeof entry !== 'object') continue
     const expertId = typeof entry.expertId === 'string' && entry.expertId !== '' ? entry.expertId : null
     const library = entry.library === 'project' ? 'project' : 'global'
+    const workspace = typeof entry.workspace === 'string' ? entry.workspace : ''
     const at = typeof entry.at === 'number' && Number.isFinite(entry.at) ? entry.at : Date.now()
-    selections[sessionId] = { expertId, library, at }
+    selections[sessionId] = { expertId, library, workspace, at }
   }
   return { version: VERSION, selections }
 }
@@ -80,7 +81,7 @@ export async function openSelections(stateFile, logger = {}) {
       return state.selections[sessionId]
     },
     /** Record a selection (null clears it) and persist. */
-    set(sessionId, expertId, library = 'global') {
+    set(sessionId, expertId, library = 'global', workspace = '') {
       if (typeof sessionId !== 'string' || sessionId === '') return undefined
       if (expertId === null || expertId === undefined) {
         delete state.selections[sessionId]
@@ -88,6 +89,7 @@ export async function openSelections(stateFile, logger = {}) {
         state.selections[sessionId] = {
           expertId: String(expertId),
           library: library === 'project' ? 'project' : 'global',
+          workspace: typeof workspace === 'string' ? workspace : '',
           at: Date.now(),
         }
       }

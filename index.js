@@ -94,20 +94,56 @@ export async function apply(ctx, config = {}) {
   }
 
   /** DSH workspace (项目) root that owns this session, when the registry knows it. */
-  function workspaceRootOf(sessionId) {
+  function registryWorkspaces() {
     const registry = typeof ctx.get === 'function' ? ctx.get('workspaceRegistry') : undefined
-    if (registry === undefined || registry === null || typeof registry.list !== 'function') return undefined
-    let workspaces = []
+    if (registry === undefined || registry === null || typeof registry.list !== 'function') return []
     try {
-      workspaces = registry.list()
+      const list = registry.list()
+      return Array.isArray(list) ? list : []
     } catch {
-      return undefined
+      return []
     }
-    return pickWorkspaceRoot(workspaces, sessionId, workingDirectoryOf(sessionId))
+  }
+
+  function workspaceRootOf(sessionId) {
+    return pickWorkspaceRoot(registryWorkspaces(), sessionId, workingDirectoryOf(sessionId))
+  }
+
+  /** List registered DSH workspaces for the settings project selector. */
+  async function listWorkspaces() {
+    const out = []
+    for (const workspace of registryWorkspaces()) {
+      if (workspace === null || typeof workspace !== 'object') continue
+      const path = typeof workspace.path === 'string' ? workspace.path : ''
+      if (path === '') continue
+      let available = true
+      try {
+        if (typeof workspace.status === 'function') available = (await workspace.status()) === 'ok'
+      } catch {
+        available = false
+      }
+      const projectRoot = await findProjectRoot(path).catch(() => undefined)
+      out.push({
+        id: typeof workspace.id === 'string' ? workspace.id : '',
+        title: typeof workspace.title === 'string' && workspace.title !== '' ? workspace.title : path,
+        path,
+        available,
+        projectRoot: projectRoot ?? path,
+      })
+    }
+    return out
   }
 
   /** Resolve project-level expert paths for one session (undefined outside a project). */
-  async function resolveProjectPaths(sessionId) {
+  async function resolveProjectPaths(sessionId, workspacePath = '') {
+    const requested = typeof workspacePath === 'string' ? workspacePath : ''
+    if (requested !== '') {
+      const normalize = (value) => String(value).replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
+      const workspace = registryWorkspaces().find((item) => normalize(item?.path ?? '') === normalize(requested))
+      if (workspace === undefined) return undefined
+      const root = await findProjectRoot(workspace.path).catch(() => undefined)
+      return projectPaths(paths, root ?? workspace.path)
+    }
     if (typeof sessionId !== 'string' || sessionId === '') return undefined
     // Prefer the DSH workspace registry: a workspace may be a plain folder
     // without `.git`, and its root can be above the session's working directory.
@@ -123,7 +159,9 @@ export async function apply(ctx, config = {}) {
     paths,
     selections,
     resolveAgent,
-    resolvePaths: (_sessionId, scope) => scope === 'project' ? resolveProjectPaths(_sessionId) : Promise.resolve(paths),
+    resolvePaths: (_sessionId, scope, workspace) => scope === 'project'
+      ? resolveProjectPaths(_sessionId, workspace)
+      : Promise.resolve(paths),
     logger: { warn },
     onChange: () => routes?.bump?.(),
   })
@@ -165,6 +203,7 @@ export async function apply(ctx, config = {}) {
     switcher,
     selections,
     resolveProjectPaths,
+    listWorkspaces,
     ensureApplied: (sessionId) => switcher.ensureApplied(sessionId),
     diagnostics,
     logger: { warn },

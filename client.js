@@ -106,6 +106,11 @@ window.__ModuleLoader__.load({
   background: var(--dsw-alias-bg-layer-1, rgba(127,127,127,.18));
   box-shadow: 0 1px 2px rgba(0,0,0,.08); }
 .eh-scope-count { font-size: 10.5px; opacity: .7; }
+.eh-workspace-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 0 10px; min-width: 0; }
+.eh-workspace-label { font-size: 12px; color: var(--dsw-alias-label-secondary, inherit); flex: none; }
+.eh-workspace-select { min-width: 220px; max-width: 360px; }
+.eh-workspace-path { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 11px; color: var(--dsw-alias-label-tertiary, inherit); }
 .eh-search-wrap { position: relative; flex: 1 1 230px; min-width: 170px; }
 .eh-search-icon { position: absolute; left: 9px; top: 50%; transform: translateY(-50%);
   font-size: 13px; line-height: 1; pointer-events: none; color: var(--dsw-alias-label-tertiary, inherit); }
@@ -631,6 +636,10 @@ window.__ModuleLoader__.load({
         'library.project': '项目',
         'library.all': '全部',
         'library.filterLabel': '专家范围',
+        'library.workspace': '工作区',
+        'library.selectWorkspace': '选择工作区…',
+        'library.noWorkspaces': '还没有已登记的工作区，请先在侧栏添加工作区。',
+        'workspace.unavailable': '目录不可用',
         'installed.deleteHint': '删除后移入回收站，可在页面底部恢复。',
         'installed.deleteDone': '已删除「{name}」',
         'installed.updateOneDone': '已更新「{name}」',
@@ -863,6 +872,10 @@ window.__ModuleLoader__.load({
         'library.project': 'Project',
         'library.all': 'All',
         'library.filterLabel': 'Expert scope',
+        'library.workspace': 'Workspace',
+        'library.selectWorkspace': 'Select a workspace…',
+        'library.noWorkspaces': 'No registered workspaces yet. Add one in the sidebar first.',
+        'workspace.unavailable': 'Directory unavailable',
         'installed.deleteHint': 'Moved to the recycle bin; you can restore it below.',
         'installed.deleteDone': 'Deleted “{name}”',
         'installed.updateOneDone': 'Updated “{name}”',
@@ -1184,22 +1197,28 @@ window.__ModuleLoader__.load({
       return ''
     }
 
-    function stateUrl (sessionId) {
+    function stateUrl (sessionId, workspace) {
       var id = strOf(sessionId)
-      return API_BASE + '/state' + (id === '' ? '' : '?sessionId=' + encodeURIComponent(id))
+      var ws = strOf(workspace)
+      var params = []
+      if (id !== '') params.push('sessionId=' + encodeURIComponent(id))
+      if (ws !== '') params.push('workspace=' + encodeURIComponent(ws))
+      return API_BASE + '/state' + (params.length === 0 ? '' : '?' + params.join('&'))
     }
 
-    function detailUrl (id, scope, library, sessionId) {
+    function detailUrl (id, scope, library, sessionId, workspace) {
       var actualScope = scope === 'workbuddy' ? 'workbuddy' : 'installed'
       var project = library === 'project' ? 'project' : 'global'
+      var ws = strOf(workspace)
       return API_BASE + '/detail?id=' + encodeURIComponent(strOf(id)) + '&scope=' + actualScope +
         (project === 'project'
-          ? '&library=project&sessionId=' + encodeURIComponent(strOf(sessionId))
+          ? '&library=project&sessionId=' + encodeURIComponent(strOf(sessionId)) +
+            (ws !== '' ? '&workspace=' + encodeURIComponent(ws) : '')
           : '')
     }
 
-    function fetchState (sessionId) {
-      return api(stateUrl(sessionId))
+    function fetchState (sessionId, workspace) {
+      return api(stateUrl(sessionId, workspace))
     }
 
     /** 列表 payload 里的一张卡表；非法条目直接丢弃，渲染不因脏数据崩溃。 */
@@ -2884,6 +2903,7 @@ window.__ModuleLoader__.load({
       var cardId = strOf(card.id)
       var library = props.library === 'project' || strOf(card.library) === 'project' ? 'project' : 'global'
       var sessionId = strOf(props.sessionId)
+      var workspace = strOf(props.workspace)
 
       var phaseState = React.useState('loading')
       var phase = phaseState[0]
@@ -2945,7 +2965,7 @@ window.__ModuleLoader__.load({
         }
         setPhase('loading')
         setError('')
-        return api(detailUrl(cardId, scope, library, sessionId)).then(function (payload) {
+        return api(detailUrl(cardId, scope, library, sessionId, workspace)).then(function (payload) {
           var actual = payload !== null && payload.card !== null && typeof payload.card === 'object' ? payload.card : card
           var nextValues = {
             displayName: nameOf(actual),
@@ -3035,8 +3055,8 @@ window.__ModuleLoader__.load({
           return
         }
         setSkillBusy(true)
-        postJson(API_BASE + '/skill-import', { id: cardId, path: path, library: library, sessionId: sessionId }).then(function () {
-          return api(detailUrl(cardId, 'installed', library, sessionId)).then(function (payload) {
+        postJson(API_BASE + '/skill-import', { id: cardId, path: path, library: library, sessionId: sessionId, workspace: workspace }).then(function () {
+          return api(detailUrl(cardId, 'installed', library, sessionId, workspace)).then(function (payload) {
             var rows = []
             var raw = payload !== null && Array.isArray(payload.skills) ? payload.skills : []
             for (var i = 0; i < raw.length; i++) {
@@ -3893,9 +3913,15 @@ window.__ModuleLoader__.load({
       var trashConfirmState = React.useState('')
       var trashConfirm = trashConfirmState[0]
       var setTrashConfirm = trashConfirmState[1]
+      var workspacesState = React.useState([])
+      var workspaces = workspacesState[0]
+      var setWorkspaces = workspacesState[1]
+      var selectedWorkspaceState = React.useState('')
+      var selectedWorkspace = selectedWorkspaceState[0]
+      var setSelectedWorkspace = selectedWorkspaceState[1]
 
       function pull () {
-        return fetchState(sessionId).then(function (payload) {
+        return fetchState(sessionId, selectedWorkspace).then(function (payload) {
           setData(payload)
           setError('')
           return payload
@@ -3905,37 +3931,65 @@ window.__ModuleLoader__.load({
         })
       }
 
+      function loadWorkspaces () {
+        return api(API_BASE + '/workspaces?sessionId=' + encodeURIComponent(sessionId)).then(function (payload) {
+          var items = arrOf(payload !== null && payload !== undefined ? payload.items : null)
+          setWorkspaces(items)
+          var currentRoot = strOf(payload !== null && payload !== undefined ? payload.currentRoot : '')
+          setSelectedWorkspace(function (previous) {
+            if (previous !== '' && items.some(function (item) { return strOf(item.path) === previous && item.available !== false })) return previous
+            var matching = items.filter(function (item) {
+              return item.available !== false && (strOf(item.path) === currentRoot || strOf(item.projectRoot) === currentRoot)
+            })
+            if (matching.length > 0) return strOf(matching[0].path)
+            var available = items.filter(function (item) { return item.available !== false })
+            return available.length > 0 ? strOf(available[0].path) : ''
+          })
+          return items
+        }, function () {
+          setWorkspaces([])
+          return []
+        })
+      }
+
       function loadTrash () {
         var globalReq = api(API_BASE + '/trash').then(function (payload) {
           return arrOf(payload !== null && payload !== undefined ? payload.items : null).map(function (item) {
             return Object.assign({}, item, { library: 'global' })
           })
         }, function () { return [] })
-        var projectReq = api(API_BASE + '/trash?library=project&sessionId=' + encodeURIComponent(sessionId))
-          .then(function (payload) {
-            return arrOf(payload !== null && payload !== undefined ? payload.items : null).map(function (item) {
-              return Object.assign({}, item, { library: 'project' })
-            })
-          }, function () { return [] })
+        var projectReq = selectedWorkspace === ''
+          ? Promise.resolve([])
+          : api(API_BASE + '/trash?library=project&sessionId=' + encodeURIComponent(sessionId) +
+            '&workspace=' + encodeURIComponent(selectedWorkspace))
+            .then(function (payload) {
+              return arrOf(payload !== null && payload !== undefined ? payload.items : null).map(function (item) {
+                return Object.assign({}, item, { library: 'project', workspace: selectedWorkspace })
+              })
+            }, function () { return [] })
         return Promise.all([globalReq, projectReq]).then(function (lists) {
           setTrash(lists[0].concat(lists[1]))
           return lists
         })
       }
 
-      React.useEffect(function () { pull(); loadTrash() }, [sessionId])
+      React.useEffect(function () {
+        void loadWorkspaces()
+      }, [sessionId])
+
+      React.useEffect(function () { pull(); loadTrash() }, [sessionId, selectedWorkspace])
 
       React.useEffect(function () {
         if (bus === null || bus === undefined || typeof bus.subscribe !== 'function') return undefined
         return bus.subscribe(function () { pull() })
-      }, [bus, sessionId])
+      }, [bus, sessionId, selectedWorkspace])
 
       React.useEffect(function () {
         if (typeof document === 'undefined' || document === null) return undefined
         var onVisibility = function () { if (!document.hidden) pull() }
         document.addEventListener('visibilitychange', onVisibility)
         return function () { document.removeEventListener('visibilitychange', onVisibility) }
-      }, [sessionId])
+      }, [sessionId, selectedWorkspace])
 
       React.useEffect(function () {
         if (notice === null || notice.kind !== 'ok') return undefined
@@ -4086,7 +4140,8 @@ window.__ModuleLoader__.load({
         postJson(API_BASE + '/delete', {
           id: id,
           library: strOf(card.library) === 'project' ? 'project' : 'global',
-          sessionId: sessionId
+          sessionId: sessionId,
+          workspace: strOf(card.library) === 'project' ? selectedWorkspace : ''
         }).then(function () {
           setNotice({ kind: 'ok', text: t('installed.deleteDone', { name: nameOf(card) }) })
           if (detail !== null && detail.card !== null && detail.card !== undefined &&
@@ -4112,7 +4167,8 @@ window.__ModuleLoader__.load({
         postJson(API_BASE + '/purge-trash', {
           name: name,
           library: strOf(item.library) === 'project' ? 'project' : 'global',
-          sessionId: sessionId
+          sessionId: sessionId,
+          workspace: strOf(item.workspace) !== '' ? strOf(item.workspace) : (strOf(item.library) === 'project' ? selectedWorkspace : '')
         }).then(function () {
           setNotice({ kind: 'ok', text: t('trash.purged', { name: strOf(item.displayName) || name }) })
           return loadTrash()
@@ -4131,7 +4187,8 @@ window.__ModuleLoader__.load({
         postJson(API_BASE + '/restore-trash', {
           name: name,
           library: strOf(item.library) === 'project' ? 'project' : 'global',
-          sessionId: sessionId
+          sessionId: sessionId,
+          workspace: strOf(item.workspace) !== '' ? strOf(item.workspace) : (strOf(item.library) === 'project' ? selectedWorkspace : '')
         }).then(function (result) {
           var restored = result !== null && result !== undefined ? result.expert : null
           setNotice({ kind: 'ok', text: t('trash.restored', { name: nameOf(restored) || strOf(item.displayName) || name }) })
@@ -4152,7 +4209,8 @@ window.__ModuleLoader__.load({
         postJson(API_BASE + '/switch', {
           sessionId: sessionId,
           expertId: strOf(card.id),
-          library: strOf(card.library) === 'project' ? 'project' : 'global'
+          library: strOf(card.library) === 'project' ? 'project' : 'global',
+          workspace: strOf(card.library) === 'project' ? selectedWorkspace : ''
         }).then(function () {
           setNotice({ kind: 'ok', text: t('detail.useDone', { name: nameOf(card) }) })
           return pull()
@@ -4179,6 +4237,7 @@ window.__ModuleLoader__.load({
           id: strOf(card.id),
           library: strOf(card.library) === 'project' ? 'project' : 'global',
           sessionId: sessionId,
+          workspace: strOf(card.library) === 'project' ? selectedWorkspace : '',
           patch: {
             displayName: payload.displayName,
             profession: payload.profession,
@@ -4222,11 +4281,11 @@ window.__ModuleLoader__.load({
         var library = strOf(card.library) === 'project' ? 'project' : 'global'
         var key = mode + ':' + library + ':' + strOf(card.id)
         if (action === 'detail') {
-          setDetail({ scope: mode === 'market' ? 'workbuddy' : 'installed', library: library, card: card })
+          setDetail({ scope: mode === 'market' ? 'workbuddy' : 'installed', library: library, workspace: library === 'project' ? selectedWorkspace : '', card: card })
           return
         }
         if (action === 'edit') {
-          setDetail({ scope: 'installed', library: library, card: card })
+          setDetail({ scope: 'installed', library: library, workspace: library === 'project' ? selectedWorkspace : '', card: card })
           return
         }
         if (action === 'delete') {
@@ -4348,6 +4407,34 @@ window.__ModuleLoader__.load({
         }, scopeOptions[si].label, el('span', { className: 'eh-scope-count' }, String(scopeOptions[si].count))))
       }
 
+      var workspaceOptions = [el('option', { key: 'ws-none', value: '' }, t('library.selectWorkspace'))]
+      for (var wi = 0; wi < workspaces.length; wi++) {
+        var ws = workspaces[wi] !== null && typeof workspaces[wi] === 'object' ? workspaces[wi] : {}
+        workspaceOptions.push(el('option', {
+          key: 'ws:' + strOf(ws.id) + ':' + strOf(ws.path),
+          value: strOf(ws.path),
+          disabled: ws.available === false
+        }, strOf(ws.title) + (ws.available === false ? '（' + t('workspace.unavailable') + '）' : '')))
+      }
+      var selectedWorkspaceMeta = null
+      for (var wj = 0; wj < workspaces.length; wj++) {
+        if (strOf(workspaces[wj].path) === selectedWorkspace) { selectedWorkspaceMeta = workspaces[wj]; break }
+      }
+
+      var workspaceBar = scopeFilter === 'project'
+        ? el('div', { className: 'eh-workspace-bar' },
+            el('span', { className: 'eh-workspace-label' }, t('library.workspace')),
+            el('select', {
+              className: 'eh-select eh-workspace-select',
+              value: selectedWorkspace,
+              'aria-label': t('library.workspace'),
+              onChange: function (event) { setSelectedWorkspace(event.target.value) }
+            }, workspaceOptions),
+            selectedWorkspaceMeta !== null
+              ? el('code', { className: 'eh-workspace-path' }, strOf(selectedWorkspaceMeta.projectRoot) || strOf(selectedWorkspaceMeta.path))
+              : el('span', { className: 'eh-hint' }, t('library.noWorkspaces')))
+        : null
+
       var installedPanel = el('section', {
         className: 'eh-panel',
         role: 'tabpanel',
@@ -4356,6 +4443,7 @@ window.__ModuleLoader__.load({
         hidden: tab !== 'installed' ? true : undefined
       },
         el('div', { className: 'eh-scope-filter', role: 'group', 'aria-label': t('library.filterLabel') }, scopeNodes),
+        workspaceBar,
         el(ExpertToolbar, {
           t: t,
           query: query,
@@ -4513,6 +4601,7 @@ window.__ModuleLoader__.load({
               card: detail.card,
               scope: detail.scope,
               library: detail.library !== undefined ? detail.library : strOf(detail.card.library),
+              workspace: strOf(detail.workspace) !== '' ? strOf(detail.workspace) : selectedWorkspace,
               sessionId: sessionId,
               laneBusy: laneBusy,
               onClose: function () { setDetail(null) },
