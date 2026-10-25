@@ -140,10 +140,11 @@ body 上限 1 MiB（头像单独 8 MiB）。
 | 12 | GET | `/diagnostics?sessionId=` | — | 只读诊断：`{ ok, agents:[{sessionId,status}], skills:[{name,description,provider,source}], expert? }`；用于确认专家与技能是否真的注册到某个 agent 作用域 |
 | 13 | GET | `/trash?library=&sessionId=` | — | `{ ok, library, items:[{name, id, displayName, deletedAt}] }` |
 | 14 | POST | `/restore-trash` | `{ name, library?, sessionId? }` | `{ ok, expert:Card }`；目标 id 已存在时拒绝 |
-| 15 | POST | `/skill-import` | `{ id, path, library?, sessionId? }` | `{ ok, expert:Card }`；path 支持技能目录 / 多个技能的父目录 / 单个 `.md` |
+| 15 | POST | `/skill-import` | `{ id, path?, paths?: string[], library?, sessionId?, workspace? }` | `{ ok, expert:Card, imported:string[], failed:[{path,error}] }`；path/paths 支持技能目录 / 多个技能的父目录 / 单个 `.md`，一次最多 50 个 |
 | 16 | POST | `/purge-trash` | `{ name, library?, sessionId?, workspace? }` | `{ ok, name }`；永久删除回收站条目，不可恢复；路径穿越类 name 拒绝 |
 | 17 | GET | `/workspaces?sessionId=` | — | `{ ok, currentRoot, items:[{ id, title, path, available, projectRoot }] }`；供项目页工作区选择器使用 |
 | 18 | POST | `/migrate` | `{ id, library, workspace?, targetLibrary, targetWorkspace?, sessionId? }` | 把专家目录从全局/项目移动到另一个范围；目标同名存在时报错，不覆盖 |
+| 19 | GET | `/skill-sources?library=&sessionId=&workspace=&id=` | — | `{ ok, items:[{ name, importName, description, path, pathLabel, source, sourceLabel, scope, chars, imported }], warnings, truncated, roots }`；自动扫描本机 DSH、Claude Code、Codex、Cursor、WorkBuddy 等技能目录；`id` 用于标记已在该专家中的技能 |
 
 > 网页 URL 导入已移除：网页/在线内容改由模型工具 `expert_import`（§12）读取并整理，
 > 用户不再需要自己填写网址。`importers.js` 仍为工具读取压缩包/本机目录服务。

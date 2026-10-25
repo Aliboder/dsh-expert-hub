@@ -12,7 +12,7 @@
  */
 
 import { readFile } from 'node:fs/promises'
-import { extname, join } from 'node:path'
+import { basename, extname, join } from 'node:path'
 
 import { excerptOf, ID_RE } from './format.js'
 import {
@@ -26,6 +26,7 @@ import {
   sendJson,
 } from './http.js'
 import { displayPath } from './paths.js'
+import { discoverSkills } from './skill-sources.js'
 import {
   avatarFileOf,
   cardFromDraft,
@@ -41,6 +42,7 @@ const CACHE_MS = 2000
 const BODY_CAP = 1024 * 1024
 const BODY_CAP_LARGE = 8 * 1024 * 1024
 const MAX_IMPORT_IDS = 100
+const MAX_SKILL_PATHS = 50
 const CONTENT_TYPES = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp' }
 
 /** Error text never leaks a stack trace to the browser. */
@@ -376,6 +378,46 @@ export function createRoutes({ paths, switcher, selections, resolveProjectPaths,
       ))
       return
     }
+    if (method === 'GET' && path === '/skill-sources') {
+      const library = libraryOf(url.searchParams.get('library') ?? 'global')
+      const sessionId = url.searchParams.get('sessionId') ?? ''
+      const workspace = url.searchParams.get('workspace') ?? ''
+      const expertId = url.searchParams.get('id') ?? ''
+      let projectRoot = ''
+      if (typeof resolveProjectPaths === 'function' && (sessionId !== '' || workspace !== '')) {
+        const scoped = await resolveProjectPaths(sessionId, workspace).catch(() => undefined)
+        projectRoot = scoped?.projectRoot ?? ''
+      }
+      const found = await discoverSkills({ dshHome: paths.dshHome, home: paths.userHome, projectRoot })
+      let importedNames = []
+      if (expertId !== '') {
+        const scoped = await scopedPathsFor(library, sessionId, workspace).catch(() => undefined)
+        if (scoped !== undefined) {
+          const detail = await readInstalledDetail(scoped, expertId).catch(() => undefined)
+          if (detail !== undefined) {
+            importedNames = detail.skills
+              .map((skill) => String(skill.name ?? '').toLowerCase())
+              .filter((name) => name !== '')
+          }
+        }
+      }
+      const items = found.items.map((item) => ({
+        ...item,
+        imported: importedNames.includes(String(item.importName ?? item.name).toLowerCase())
+          || importedNames.includes(String(item.name).toLowerCase())
+          || importedNames.includes(basename(item.path).toLowerCase()),
+      }))
+      sendJson(res, 200, {
+        ok: true,
+        library,
+        projectRoot: displayPath(projectRoot),
+        items,
+        warnings: found.warnings,
+        truncated: found.truncated,
+        roots: found.roots,
+      })
+      return
+    }
     if (method === 'GET' && path === '/avatar') {
       await avatarOf(req, res)
       return
@@ -451,9 +493,29 @@ export function createRoutes({ paths, switcher, selections, resolveProjectPaths,
       const author = await import('./author.js')
       const body = await readJsonBody(req, BODY_CAP_LARGE)
       const scoped = await scopedPathsFor(libraryOf(body.library ?? 'global'), body.sessionId ?? '', body.workspace ?? '')
-      const expert = await author.importSkillFromPath(body.id, body.path, scoped)
+      const raw = Array.isArray(body.paths) ? body.paths : [body.path]
+      const requested = raw
+        .map((value) => (typeof value === 'string' ? value.trim() : ''))
+        .filter((value) => value !== '')
+        .slice(0, MAX_SKILL_PATHS)
+      const sources = [...new Set(requested)]
+      if (sources.length === 0) throw new HttpError(400, 'NO_PATH', '请选择要导入的技能')
+      const imported = []
+      const failed = []
+      let expert
+      for (const source of sources) {
+        try {
+          expert = await author.importSkillFromPath(body.id, source, scoped)
+          imported.push(source)
+        } catch (error) {
+          failed.push({ path: source, error: messageOf(error) })
+        }
+      }
+      if (imported.length === 0) {
+        throw new HttpError(400, 'IMPORT_FAILED', failed[0]?.error ?? '导入技能失败')
+      }
       bump()
-      sendJson(res, 200, { ok: true, expert })
+      sendJson(res, 200, { ok: true, expert, imported, failed })
       return
     }
     if (path === '/import') {

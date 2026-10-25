@@ -4,7 +4,7 @@
 
 import assert from 'node:assert/strict'
 import http from 'node:http'
-import { mkdtemp, mkdir, rm } from 'node:fs/promises'
+import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -17,7 +17,13 @@ const project = await mkdtemp(join(tmpdir(), 'expert-hub-routes-project-'))
 let server
 try {
   await mkdir(join(project, '.git'), { recursive: true })
-  const paths = createPaths({ dshHome: home })
+  await mkdir(join(home, 'skills', 'alpha'), { recursive: true })
+  await writeFile(join(home, 'skills', 'alpha', 'SKILL.md'),
+    '---\nname: alpha\ndescription: Global alpha\n---\n', 'utf8')
+  await mkdir(join(project, '.dsh', 'skills', 'beta'), { recursive: true })
+  await writeFile(join(project, '.dsh', 'skills', 'beta', 'SKILL.md'),
+    '---\nname: beta\ndescription: Project beta\n---\n', 'utf8')
+  const paths = createPaths({ dshHome: home, userHome: home })
   const scoped = projectPaths(paths, project)
   const projectExpert = await createExpert({ displayName: '路由项目专家', roleText: '# 项目\n\n路由测试。' }, scoped)
 
@@ -82,6 +88,26 @@ try {
   assert.equal(detail.ok, true)
   assert.match(detail.roleText, /路由测试/)
   assert.equal(detail.card.library, 'project')
+
+  const sources = await (await fetch(`${base}/skill-sources?library=project&sessionId=s1&workspace=${encodeURIComponent(project)}&id=${projectExpert.id}`)).json()
+  assert.equal(sources.ok, true)
+  assert.ok(sources.items.some((item) => item.name === 'alpha' && item.scope === 'global'))
+  assert.ok(sources.items.some((item) => item.name === 'beta' && item.scope === 'project'))
+
+  const skillImport = await (await fetch(`${base}/skill-import`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      id: projectExpert.id,
+      paths: [join(project, '.dsh', 'skills', 'beta')],
+      library: 'project',
+      sessionId: 's1',
+    }),
+  })).json()
+  assert.equal(skillImport.ok, true)
+  assert.equal(skillImport.imported.length, 1)
+  const detailAfterSkill = await (await fetch(`${base}/detail?id=${projectExpert.id}&scope=installed&library=project&sessionId=s1&workspace=${encodeURIComponent(project)}`)).json()
+  assert.ok(detailAfterSkill.skills.some((skill) => skill.name === 'beta'))
 
   const switchedResponse = await (await fetch(`${base}/switch`, {
     method: 'POST',

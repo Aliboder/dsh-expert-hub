@@ -30,7 +30,7 @@ export function resolveDshHome(configured, env = process.env) {
 }
 
 /** Every location the plugin owns, resolved once per apply(). */
-export function createPaths({ dshHome, sourcePath }) {
+export function createPaths({ dshHome, sourcePath, userHome }) {
   const home = resolveDshHome(dshHome)
   const root = join(home, 'experts')
   const rawSource = typeof sourcePath === 'string' && sourcePath.trim() !== '' ? sourcePath.trim() : ''
@@ -38,6 +38,7 @@ export function createPaths({ dshHome, sourcePath }) {
     scope: 'global',
     projectRoot: '',
     dshHome: home,
+    userHome: resolve(typeof userHome === 'string' && userHome.trim() !== '' ? userHome : homedir()),
     expertsRoot: root,
     stateDir: join(home, 'expert-hub'),
     stateFile: join(home, 'expert-hub', 'state.json'),

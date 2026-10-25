@@ -163,8 +163,8 @@ window.__ModuleLoader__.load({
 .eh-card[data-broken="true"] { border-color: color-mix(in srgb, var(--dsw-alias-state-warn-primary, #c77700) 45%, transparent); }
 .eh-card[data-updatable="true"] { border-color: color-mix(in srgb, var(--dsw-alias-brand-primary, #4f6ef7) 32%, var(--dsw-alias-border-l1, transparent)); }
 .eh-card-head { display: flex; align-items: center; gap: 10px; min-width: 0; }
-.eh-avatar { width: 42px; height: 42px; flex: none; border-radius: 11px; object-fit: cover;
-  display: inline-flex; align-items: center; justify-content: center; font-size: 18px; line-height: 1;
+.eh-avatar { width: 46px; height: 46px; flex: none; border-radius: 12px; object-fit: cover;
+  display: inline-flex; align-items: center; justify-content: center; font-size: 19px; line-height: 1;
   background: var(--dsw-alias-bg-layer-2, rgba(127,127,127,.16));
   color: var(--dsw-alias-label-secondary, inherit); }
 .eh-card-titles { min-width: 0; flex: 1 1 auto; display: flex; flex-direction: column; gap: 2px; }
@@ -177,6 +177,18 @@ window.__ModuleLoader__.load({
 .eh-card-desc { margin: 0; min-height: 32px; font-size: 12px; line-height: 1.55;
   color: var(--dsw-alias-label-secondary, inherit); display: -webkit-box; -webkit-line-clamp: 2;
   -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.eh-card-skills { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; min-height: 21px; }
+.eh-skill-pip { width: 21px; height: 21px; flex: none; border-radius: 7px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 10px; line-height: 1; font-weight: 600; cursor: default;
+  color: var(--dsw-alias-brand-primary, #4f6ef7);
+  background: color-mix(in srgb, var(--dsw-alias-brand-primary, #4f6ef7) 9%, transparent);
+  border: 1px solid color-mix(in srgb, var(--dsw-alias-brand-primary, #4f6ef7) 22%, transparent); }
+.eh-skill-pip:hover {
+  background: color-mix(in srgb, var(--dsw-alias-brand-primary, #4f6ef7) 16%, transparent);
+  border-color: color-mix(in srgb, var(--dsw-alias-brand-primary, #4f6ef7) 36%, transparent); }
+.eh-card-skills-empty { font-size: 10px; line-height: 21px;
+  color: var(--dsw-alias-label-tertiary, inherit); }
 .eh-tags { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
 .eh-tag { max-width: 100%; padding: 1px 8px; border-radius: 999px; font-size: 10px; line-height: 1.7;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -341,6 +353,51 @@ window.__ModuleLoader__.load({
   border-color: var(--dsw-alias-border-l3, rgba(127,127,127,.45)); }
 .eh-skill-import { display: flex; align-items: center; gap: 8px; }
 .eh-skill-import .eh-input { flex: 1 1 auto; min-width: 0; }
+.eh-skill-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.eh-skill-manual { margin-top: 10px; }
+.eh-skill-manual > summary { cursor: pointer; font-size: 12px; line-height: 18px;
+  color: var(--dsw-alias-label-secondary, inherit); }
+.eh-skill-manual .eh-skill-import { margin-top: 8px; }
+.eh-ai-hint { margin: 8px 0 0; padding: 8px 10px; border-radius: 9px;
+  border: 1px dashed var(--dsw-alias-border-l1, rgba(127,127,127,.32));
+  background: var(--dsw-alias-bg-layer-1, transparent);
+  color: var(--dsw-alias-label-secondary, inherit); }
+.eh-pop-foot-hint { margin-top: 4px; font-size: 11px; line-height: 16px;
+  color: var(--dsw-alias-label-tertiary, inherit); }
+.eh-picker-backdrop { position: fixed; inset: 0; z-index: 1100; display: flex;
+  align-items: center; justify-content: center; padding: 16px; background: rgb(0 0 0 / 32%); }
+.eh-picker { display: flex; flex-direction: column; gap: 10px; width: min(760px, 100%);
+  max-height: min(82vh, 760px); padding: 16px; border-radius: 14px;
+  border: 1px solid var(--dsw-alias-border-l1, rgba(127,127,127,.3));
+  background: var(--dsw-alias-bg-overlay, var(--dsw-alias-bg-layer-1, #fff));
+  box-shadow: 0 20px 60px rgb(0 0 0 / 28%); }
+.eh-picker-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.eh-picker-title { margin: 0; font-size: 15px; line-height: 22px; font-weight: 600; }
+.eh-picker-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.eh-picker-tools .eh-input { flex: 1 1 220px; min-width: 0; }
+.eh-picker-tools .eh-select { flex: 0 1 170px; }
+.eh-picker-list { flex: 1 1 auto; min-height: 120px; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 6px; padding: 2px; }
+.eh-picker-item { display: flex; align-items: flex-start; gap: 9px; padding: 8px 10px;
+  border-radius: 9px; border: 1px solid transparent; cursor: pointer; }
+.eh-picker-item:hover { background: var(--dsw-alias-bg-layer-2, rgba(127,127,127,.08)); }
+.eh-picker-item[data-added="true"] { opacity: .6; cursor: default; }
+.eh-picker-item input { margin-top: 2px; flex: none; }
+.eh-picker-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.eh-picker-name { display: flex; align-items: center; gap: 6px; font-size: 13px;
+  line-height: 18px; font-weight: 600; overflow-wrap: anywhere; }
+.eh-picker-added { font-size: 10px; font-weight: 400; padding: 0 6px; border-radius: 999px;
+  border: 1px solid var(--dsw-alias-border-l1); color: var(--dsw-alias-label-secondary, inherit); }
+.eh-picker-desc { font-size: 12px; line-height: 17px; overflow-wrap: anywhere;
+  color: var(--dsw-alias-label-secondary, inherit); }
+.eh-picker-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 2px; }
+.eh-picker-path { font-family: ${MONO}; font-size: 10.5px; line-height: 15px;
+  color: var(--dsw-alias-label-tertiary, inherit); overflow-wrap: anywhere; }
+.eh-picker-empty { padding: 24px 12px; text-align: center; font-size: 12.5px; line-height: 1.7;
+  color: var(--dsw-alias-label-secondary, inherit); }
+.eh-picker-foot { display: flex; align-items: center; justify-content: flex-end; gap: 8px;
+  flex-wrap: wrap; padding-top: 4px; border-top: 1px solid var(--dsw-alias-border-l1, rgba(127,127,127,.18)); }
+.eh-picker-foot .eh-hint { margin-right: auto; }
 .eh-trash-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 .eh-trash-item { display: flex; align-items: center; justify-content: space-between; gap: 10px;
   padding: 8px 2px; border-top: 1px solid var(--dsw-alias-border-l1, rgba(127,127,127,.22)); }
@@ -427,6 +484,8 @@ window.__ModuleLoader__.load({
   .eh-studio-form-grid { grid-template-columns: minmax(0, 1fr); }
   .eh-studio-form-grid .eh-span-2 { grid-column: auto; }
   .eh-skill-import { flex-direction: column; align-items: stretch; }
+  .eh-picker-tools { flex-direction: column; align-items: stretch; }
+  .eh-picker { padding: 12px; }
 }
 
 /* ── 详情 ─────────────────────────────────────────────────────────────── */
@@ -596,6 +655,7 @@ window.__ModuleLoader__.load({
         'page.label': '专家中心',
         'page.title': '专家中心',
         'page.subtitle': '统一管理本机专家：导入 WorkBuddy 专家、自己创建，按会话切换角色与技能。',
+        'page.aiEditHint': '也可以直接在对话里让 AI 改专家，例如：“把「像素君」的职业改成 UI 工程师”“给「像素君」加一个技能：设计评审清单”。',
         'page.countInstalled': '已安装 {n}',
         'page.countAvailable': '市场 {n}',
         'page.countUpdatable': '可更新 {n}',
@@ -634,6 +694,7 @@ window.__ModuleLoader__.load({
         'installed.noMatchTip': '换个关键词，或清除当前的搜索与分类筛选。',
         'installed.clearFilters': '清除筛选',
         'installed.skills': '{n} 个技能',
+        'installed.noSkills': '无技能',
         'installed.roleChars': '{n} 字角色',
         'installed.updatable': '可更新',
         'installed.broken': '解析失败',
@@ -672,6 +733,7 @@ window.__ModuleLoader__.load({
 
         'create.title': '新建专家',
         'create.subtitle': '填写角色提示词与元信息，保存后即可在会话胶囊里切换使用。',
+        'create.aiEditHint': '创建后也可以直接在对话里让 AI 继续修改：改角色提示词、加技能、换职业或补充边界。',
         'create.displayName': '显示名 *',
         'create.displayNamePlaceholder': '例如：像素君',
         'create.id': '专家 ID',
@@ -777,7 +839,35 @@ window.__ModuleLoader__.load({
         'edit.skillImporting': '导入中…',
         'edit.skillImported': '技能已导入',
         'edit.skillImportFailed': '导入技能失败：{message}',
-        'studio.editHint': '修改后点「保存修改」生效；技能同样可以增删或从目录导入。',
+        'edit.skillsAiHint': '想加技能也可以直接对 AI 说：“给「{name}」加一个技能，内容是…”。',
+        'edit.skillManual': '高级：手动输入技能路径',
+        'edit.skillManualHint': '技能不在扫描范围内时，可粘贴技能目录、包含多个技能的父目录或单个 .md 路径。',
+        'skillPicker.choose': '从本机技能库选择',
+        'skillPicker.title': '从本机技能库选择',
+        'skillPicker.subtitle': '自动扫描本机 DSH、Claude Code、Codex、Cursor 等技能目录；选中后导入到当前专家。',
+        'skillPicker.search': '搜索技能名、描述或路径…',
+        'skillPicker.allSources': '全部来源',
+        'skillPicker.refresh': '重新扫描',
+        'skillPicker.loading': '正在扫描本机技能…',
+        'skillPicker.failed': '扫描失败：{message}',
+        'skillPicker.empty': '没有找到本机技能。',
+        'skillPicker.emptyHint': '把技能放到 ~/.dsh/skills 或 ~/.agents/skills 后点「重新扫描」。',
+        'skillPicker.noMatch': '没有匹配的技能。',
+        'skillPicker.noMatchHint': '换个关键词，或把来源切回「全部来源」。',
+        'skillPicker.noDescription': '（没有描述）',
+        'skillPicker.selected': '已选 {n} 个',
+        'skillPicker.import': '导入所选技能',
+        'skillPicker.importing': '导入中…',
+        'skillPicker.cancel': '取消',
+        'skillPicker.close': '关闭',
+        'skillPicker.added': '已添加',
+        'skillPicker.project': '项目',
+        'skillPicker.global': '全局',
+        'skillPicker.importDone': '已导入 {n} 个技能',
+        'skillPicker.importPartial': '已导入 {done} 个，失败 {failed} 个：{message}',
+        'studio.editHint': '修改后点「保存修改」生效；技能同样可以增删或从本机技能库选择。',
+        'studio.thisExpert': '这位专家',
+        'studio.aiEditHint': '也可以不在这里改：直接在对话里对 AI 说“把「{name}」的职业改成…”“给「{name}」加一个技能…”，AI 会调用 expert_manage 完成。',
         'studio.previewHint': '这是 WorkBuddy 市场里的专家；导入到专家库后即可编辑和使用。',
         'studio.save': '保存修改',
         'studio.saving': '保存中…',
@@ -818,6 +908,7 @@ window.__ModuleLoader__.load({
         'capsule.title': '切换当前会话的专家',
         'capsule.noSession': '先创建会话',
         'capsule.openCenter': '在 设置 → 专家中心 管理专家',
+        'capsule.aiEditHint': '也可以直接在对话里让 AI 改专家：改职业、改角色提示词、加技能。',
         'capsule.search': '搜索专家…',
         'capsule.list': '专家列表',
         'capsule.global': '全局专家',
@@ -839,6 +930,7 @@ window.__ModuleLoader__.load({
         'page.label': 'Expert Center',
         'page.title': 'Expert Center',
         'page.subtitle': 'Manage local experts in one place: import WorkBuddy experts, create your own, and switch roles and skills per session.',
+        'page.aiEditHint': 'You can also edit experts by talking to the AI, e.g. “Change 像素君’s profession to UI engineer” or “Add a design-review checklist skill to 像素君”.',
         'page.countInstalled': 'Installed {n}',
         'page.countAvailable': 'Market {n}',
         'page.countUpdatable': 'Updates {n}',
@@ -877,6 +969,7 @@ window.__ModuleLoader__.load({
         'installed.noMatchTip': 'Try another keyword, or clear the current search and category filters.',
         'installed.clearFilters': 'Clear filters',
         'installed.skills': '{n} skills',
+        'installed.noSkills': 'No skills',
         'installed.roleChars': '{n} chars',
         'installed.updatable': 'Update available',
         'installed.broken': 'Broken',
@@ -915,6 +1008,7 @@ window.__ModuleLoader__.load({
 
         'create.title': 'Create an expert',
         'create.subtitle': 'Fill in the role prompt and metadata; once saved you can switch to it from the session capsule.',
+        'create.aiEditHint': 'After creating it, you can keep refining it in chat: change the role prompt, add skills, adjust the profession or boundaries.',
         'create.displayName': 'Display name *',
         'create.displayNamePlaceholder': 'e.g. Sam',
         'create.id': 'Expert ID',
@@ -1020,7 +1114,35 @@ window.__ModuleLoader__.load({
         'edit.skillImporting': 'Importing…',
         'edit.skillImported': 'Skill imported',
         'edit.skillImportFailed': 'Skill import failed: {message}',
-        'studio.editHint': 'Edits apply when you press “Save changes”; skills can be added, removed, or imported from a folder.',
+        'edit.skillsAiHint': 'You can also add a skill by asking the AI: “Add a skill to 像素君 that …”.',
+        'edit.skillManual': 'Advanced: enter a skill path',
+        'edit.skillManualHint': 'If a skill is outside the scanned roots, paste a skill folder, a parent folder of several skills, or a single .md path.',
+        'skillPicker.choose': 'Choose from local skills',
+        'skillPicker.title': 'Choose local skills',
+        'skillPicker.subtitle': 'Scans the skill folders used by DSH, Claude Code, Codex, Cursor and other agents; selected skills are copied into this expert.',
+        'skillPicker.search': 'Search skill name, description, or path…',
+        'skillPicker.allSources': 'All sources',
+        'skillPicker.refresh': 'Rescan',
+        'skillPicker.loading': 'Scanning local skills…',
+        'skillPicker.failed': 'Scan failed: {message}',
+        'skillPicker.empty': 'No local skills found.',
+        'skillPicker.emptyHint': 'Put skills under ~/.dsh/skills or ~/.agents/skills, then press “Rescan”.',
+        'skillPicker.noMatch': 'No matching skills.',
+        'skillPicker.noMatchHint': 'Try another keyword, or switch the source back to “All sources”.',
+        'skillPicker.noDescription': '(no description)',
+        'skillPicker.selected': '{n} selected',
+        'skillPicker.import': 'Import selected',
+        'skillPicker.importing': 'Importing…',
+        'skillPicker.cancel': 'Cancel',
+        'skillPicker.close': 'Close',
+        'skillPicker.added': 'Added',
+        'skillPicker.project': 'Project',
+        'skillPicker.global': 'Global',
+        'skillPicker.importDone': 'Imported {n} skill(s)',
+        'skillPicker.importPartial': 'Imported {done}, failed {failed}: {message}',
+        'studio.editHint': 'Edits apply when you press “Save changes”; skills can be added, removed, or picked from the local skill library.',
+        'studio.thisExpert': 'this expert',
+        'studio.aiEditHint': 'You can also edit this expert in chat: tell the AI “Change {name}’s profession to …” or “Add a skill to {name} …”; it will use expert_manage.',
         'studio.previewHint': 'This expert lives in the WorkBuddy marketplace; import it into the expert library to edit and use it.',
         'studio.save': 'Save changes',
         'studio.saving': 'Saving…',
@@ -1061,6 +1183,7 @@ window.__ModuleLoader__.load({
         'capsule.title': 'Switch the expert for this session',
         'capsule.noSession': 'Create a session first',
         'capsule.openCenter': 'Manage experts in Settings → Expert Center',
+        'capsule.aiEditHint': 'You can also edit experts in chat: change the profession, role prompt, or add skills.',
         'capsule.search': 'Search experts…',
         'capsule.list': 'Expert list',
         'capsule.global': 'Global experts',
@@ -1930,7 +2053,9 @@ window.__ModuleLoader__.load({
             title: t('capsule.none'),
             onClick: clearExpert
           }, el(Icon, { name: 'close', size: 12 }), ' ', t('capsule.none')) : null,
-          el('div', { className: 'eh-pop-foot' }, t('capsule.openCenter')))
+          el('div', { className: 'eh-pop-foot' },
+            el('div', null, t('capsule.openCenter')),
+            el('div', { className: 'eh-pop-foot-hint' }, t('capsule.aiEditHint'))))
       }
 
       return el('div', { className: 'eh-cap-wrap', ref: rootRef },
@@ -2046,6 +2171,26 @@ window.__ModuleLoader__.load({
         }, t(isProject ? 'library.project' : 'library.global')))
       }
 
+      var skillPips = []
+      for (var spi = 0; spi < skills.length; spi++) {
+        var skill = skills[spi] !== null && typeof skills[spi] === 'object' ? skills[spi] : {}
+        var skillName = strOf(skill.name)
+        if (skillName === '') continue
+        var skillDesc = strOf(skill.description)
+        var skillTitle = skillDesc !== ''
+          ? skillName + ' — ' + skillDesc.slice(0, 160) + (skillDesc.length > 160 ? '…' : '')
+          : skillName
+        skillPips.push(el('span', {
+          className: 'eh-skill-pip',
+          key: 'skill:' + spi,
+          title: skillTitle,
+          role: 'img',
+          'aria-label': skillName
+        }, firstGlyph(skillName)))
+      }
+
+      var descText = desc !== '' ? desc : (broken ? strOf(card.broken) : t('detail.noDescription'))
+
       return el('li', {
         className: 'eh-card',
         'data-broken': broken ? 'true' : undefined,
@@ -2058,8 +2203,15 @@ window.__ModuleLoader__.load({
               el('span', { className: 'eh-card-name', title: name }, name),
               marks),
             el('span', { className: 'eh-card-sub', title: subOf(card) }, subOf(card)))),
+        el('p', { className: 'eh-card-desc', title: descText }, descText),
+        el('div', {
+          className: 'eh-card-skills',
+          title: skillPips.length > 0 ? t('installed.skills', { n: skills.length }) : t('installed.noSkills')
+        },
+          skillPips.length > 0
+            ? skillPips
+            : el('span', { className: 'eh-card-skills-empty' }, t('installed.noSkills'))),
         el('div', { className: 'eh-card-meta' },
-          skills.length > 0 ? el('span', { className: 'eh-meta' }, t('installed.skills', { n: skills.length })) : null,
           el('span', { className: 'eh-meta' }, t('installed.roleChars', { n: roleChars })),
           sourceLabel !== '' ? el('span', { className: 'eh-meta', title: sourceLabel }, sourceLabel) : null),
         el('div', { className: 'eh-actions' }, actions))
@@ -3078,16 +3230,25 @@ window.__ModuleLoader__.load({
         })
       }
 
-      function importSkill () {
-        if (skillBusy || saving || readOnly) return
-        var path = strOf(skillPath)
+      function importSkills (paths) {
+        if (skillBusy || saving || readOnly) return Promise.resolve(false)
+        var list = arrOf(paths)
+          .map(function (value) { return strOf(value) })
+          .filter(function (value) { return value !== '' })
+        var previousCount = skills.length
         setSkillNotice('')
-        if (path === '') {
+        if (list.length === 0) {
           setSkillNotice(t('edit.skillImportFailed', { message: t('import.emptyPath') }))
-          return
+          return Promise.resolve(false)
         }
         setSkillBusy(true)
-        postJson(API_BASE + '/skill-import', { id: cardId, path: path, library: library, sessionId: sessionId, workspace: workspace }).then(function () {
+        return postJson(API_BASE + '/skill-import', {
+          id: cardId,
+          paths: list,
+          library: library,
+          sessionId: sessionId,
+          workspace: workspace
+        }).then(function (result) {
           return api(detailUrl(cardId, 'installed', library, sessionId, workspace)).then(function (payload) {
             var rows = []
             var raw = payload !== null && Array.isArray(payload.skills) ? payload.skills : []
@@ -3098,15 +3259,55 @@ window.__ModuleLoader__.load({
               })
             }
             setSkills(rows)
+            // Importing a skill writes it to disk immediately, so fold the new
+            // skill list into the baseline. Field edits made before the import
+            // stay dirty; only the skills part is now known to be saved.
+            try {
+              var base = baseline !== '' ? JSON.parse(baseline) : null
+              if (base !== null && typeof base === 'object') {
+                base.skills = rows
+                setBaseline(JSON.stringify(base))
+              } else {
+                setBaseline(snapshotOf(values, rows, avatarDataUrl))
+              }
+            } catch {
+              setBaseline(snapshotOf(values, rows, avatarDataUrl))
+            }
             if (payload !== null && payload.card !== null && typeof payload.card === 'object') setDetailCard(payload.card)
-            setSkillNotice(t('edit.skillImported'))
+            var failed = arrOf(result !== null && result !== undefined ? result.failed : null)
+            if (failed.length > 0) {
+              var first = failed[0] !== null && failed[0] !== undefined ? failed[0] : {}
+              setSkillNotice(t('skillPicker.importPartial', {
+                done: arrOf(result !== null && result !== undefined ? result.imported : null).length,
+                failed: failed.length,
+                message: strOf(first.error)
+              }))
+            } else {
+              var added = rows.length - previousCount
+              setSkillNotice(t('skillPicker.importDone', { n: added > 0 ? added : list.length }))
+            }
             setSkillPath('')
-            return payload
+            return true
           })
         }, function (err) {
           setSkillNotice(t('edit.skillImportFailed', { message: errorOf(err) }))
-          return null
-        }).then(function () { setSkillBusy(false) })
+          return false
+        }).catch(function (err) {
+          setSkillNotice(t('edit.skillImportFailed', { message: errorOf(err) }))
+          return false
+        }).then(function (ok) {
+          setSkillBusy(false)
+          return ok
+        })
+      }
+
+      function importSkill () {
+        var path = strOf(skillPath)
+        if (path === '') {
+          setSkillNotice(t('edit.skillImportFailed', { message: t('import.emptyPath') }))
+          return
+        }
+        void importSkills([path])
       }
 
       function submit () {
@@ -3230,6 +3431,10 @@ window.__ModuleLoader__.load({
               })))
 
       var body = el('div', { className: 'eh-studio-body' },
+        el('p', { className: 'eh-hint eh-ai-hint' },
+          readOnly
+            ? t('studio.previewHint')
+            : t('studio.aiEditHint', { name: nameOf(detailCard) })),
         section(t('studio.sectionProfile'),
           null,
           el('div', { className: 'eh-studio-form-grid' },
@@ -3245,11 +3450,17 @@ window.__ModuleLoader__.load({
           skillBusy: skillBusy,
           skillNotice: skillNotice,
           readOnly: readOnly,
+          library: library,
+          sessionId: sessionId,
+          workspace: workspace,
+          expertId: cardId,
+          expertName: nameOf(detailCard),
           onChangeSkill: changeSkill,
           onAddSkill: addSkill,
           onRemoveSkill: removeSkill,
           onPathChange: setSkillPath,
-          onImport: importSkill
+          onImport: importSkill,
+          onImportPaths: importSkills
         }),
         avatarError !== '' ? el('p', { className: 'eh-form-error', role: 'alert' }, avatarError) : null,
         notice !== '' ? el('div', { className: 'eh-notice', 'data-kind': 'ok', role: 'status' }, notice) : null,
@@ -3359,6 +3570,229 @@ window.__ModuleLoader__.load({
     }
 
     /**
+     * 本机技能选择器：自动扫描各 agent 的 skills 目录，支持搜索/来源筛选/多选。
+     */
+    function SkillPicker (props) {
+      var t = props.t
+      var open = props.open === true
+      var itemsState = React.useState([])
+      var items = itemsState[0]
+      var setItems = itemsState[1]
+      var loadingState = React.useState(false)
+      var loading = loadingState[0]
+      var setLoading = loadingState[1]
+      var errorState = React.useState('')
+      var error = errorState[0]
+      var setError = errorState[1]
+      var queryState = React.useState('')
+      var query = queryState[0]
+      var setQuery = queryState[1]
+      var sourceState = React.useState('all')
+      var source = sourceState[0]
+      var setSource = sourceState[1]
+      var selectedState = React.useState({})
+      var selected = selectedState[0]
+      var setSelected = selectedState[1]
+      var busyState = React.useState(false)
+      var busy = busyState[0]
+      var setBusy = busyState[1]
+      var tickState = React.useState(0)
+      var tick = tickState[0]
+      var setTick = tickState[1]
+
+      React.useEffect(function () {
+        if (!open) return undefined
+        var alive = true
+        setLoading(true)
+        setError('')
+        setSelected({})
+        var params = ['library=' + encodeURIComponent(props.library === 'project' ? 'project' : 'global')]
+        if (strOf(props.sessionId) !== '') params.push('sessionId=' + encodeURIComponent(strOf(props.sessionId)))
+        if (strOf(props.workspace) !== '') params.push('workspace=' + encodeURIComponent(strOf(props.workspace)))
+        if (strOf(props.expertId) !== '') params.push('id=' + encodeURIComponent(strOf(props.expertId)))
+        api(API_BASE + '/skill-sources?' + params.join('&')).then(function (payload) {
+          if (!alive) return
+          setItems(arrOf(payload !== null && payload !== undefined ? payload.items : null))
+          setLoading(false)
+        }, function (err) {
+          if (!alive) return
+          setError(t('skillPicker.failed', { message: errorOf(err) }))
+          setLoading(false)
+        })
+        return function () { alive = false }
+      }, [open, props.library, props.sessionId, props.workspace, props.expertId, tick])
+
+      React.useEffect(function () {
+        if (!open || typeof document === 'undefined' || document === null) return undefined
+        var onKeyDown = function (event) {
+          if (event === null || event === undefined || event.key !== 'Escape') return
+          // Capture phase: the dialog overlay also listens for Escape on
+          // document. Without stopping it here, one Esc would close both the
+          // picker and the whole expert dialog.
+          if (typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation()
+          else if (typeof event.stopPropagation === 'function') event.stopPropagation()
+          props.onClose()
+        }
+        document.addEventListener('keydown', onKeyDown, true)
+        return function () { document.removeEventListener('keydown', onKeyDown, true) }
+      }, [open])
+
+      if (!open) return null
+
+      var pending = arrOf(props.pendingPaths)
+      var current = arrOf(props.currentSkills)
+      var sourceMap = {}
+      var sourceList = []
+      for (var i = 0; i < items.length; i++) {
+        var label = strOf(items[i].sourceLabel) || strOf(items[i].source)
+        if (label !== '' && sourceMap[label] === undefined) {
+          sourceMap[label] = true
+          sourceList.push(label)
+        }
+      }
+      sourceList.sort()
+      var q = strOf(query).toLowerCase()
+      var filtered = []
+      for (var j = 0; j < items.length; j++) {
+        var item = items[j]
+        var itemLabel = strOf(item.sourceLabel) || strOf(item.source)
+        if (source !== 'all' && itemLabel !== source) continue
+        if (q !== '') {
+          var hay = (strOf(item.name) + ' ' + strOf(item.description) + ' ' + strOf(item.path) + ' ' + itemLabel).toLowerCase()
+          if (hay.indexOf(q) < 0) continue
+        }
+        filtered.push(item)
+      }
+
+      function isAdded (item) {
+        if (item.imported === true) return true
+        var name = strOf(item.name).toLowerCase()
+        var importName = strOf(item.importName).toLowerCase()
+        for (var k = 0; k < current.length; k++) {
+          var existing = strOf(current[k]).toLowerCase()
+          if (existing === name || (importName !== '' && existing === importName)) return true
+        }
+        for (var p = 0; p < pending.length; p++) {
+          if (strOf(pending[p]) === strOf(item.path)) return true
+        }
+        return false
+      }
+
+      function toggle (item) {
+        if (isAdded(item) || busy) return
+        setSelected(function (previous) {
+          var next = Object.assign({}, previous)
+          if (next[item.path] === true) delete next[item.path]
+          else next[item.path] = true
+          return next
+        })
+      }
+
+      var selectedCount = Object.keys(selected).length
+
+      function confirm () {
+        if (busy || selectedCount === 0) return
+        var paths = Object.keys(selected)
+        setBusy(true)
+        Promise.resolve(props.onConfirm(paths)).then(function () {
+          setBusy(false)
+          props.onClose()
+        }, function () {
+          setBusy(false)
+          props.onClose()
+        })
+      }
+
+      var rows = []
+      for (var r = 0; r < filtered.length; r++) {
+        var entry = filtered[r]
+        var added = isAdded(entry)
+        var checked = selected[entry.path] === true
+        rows.push(el('label', {
+          className: 'eh-picker-item',
+          key: strOf(entry.path) + ':' + r,
+          'data-added': added ? 'true' : undefined
+        },
+          el('input', {
+            type: 'checkbox',
+            checked: added ? true : checked,
+            disabled: added || busy,
+            onChange: (function (actual) { return function () { toggle(actual) } })(entry)
+          }),
+          el('span', { className: 'eh-picker-main' },
+            el('span', { className: 'eh-picker-name' },
+              strOf(entry.name) || t('skill.untitled'),
+              added ? el('span', { className: 'eh-picker-added' }, t('skillPicker.added')) : null),
+            el('span', { className: 'eh-picker-desc' }, strOf(entry.description) || t('skillPicker.noDescription')),
+            el('span', { className: 'eh-picker-meta' },
+              el('span', { className: 'eh-badge' }, strOf(entry.sourceLabel) || strOf(entry.source)),
+              el('span', { className: 'eh-badge' }, t(entry.scope === 'project' ? 'skillPicker.project' : 'skillPicker.global')),
+              el('code', { className: 'eh-picker-path' }, strOf(entry.pathLabel) || strOf(entry.path))))))
+      }
+
+      return el('div', {
+        className: 'eh-picker-backdrop',
+        onMouseDown: function (event) {
+          if (event.target === event.currentTarget) props.onClose()
+        }
+      },
+        el('div', {
+          className: 'eh-picker',
+          role: 'dialog',
+          'aria-modal': 'true',
+          'aria-label': t('skillPicker.title')
+        },
+          el('div', { className: 'eh-picker-head' },
+            el('div', null,
+              el('h3', { className: 'eh-picker-title' }, t('skillPicker.title')),
+              el('p', { className: 'eh-hint' }, t('skillPicker.subtitle'))),
+            el('button', {
+              className: 'eh-btn eh-btn-sm', type: 'button', disabled: busy,
+              onClick: props.onClose
+            }, t('skillPicker.close'))),
+          el('div', { className: 'eh-picker-tools' },
+            el('input', {
+              className: 'eh-input',
+              type: 'search',
+              value: query,
+              placeholder: t('skillPicker.search'),
+              'aria-label': t('skillPicker.search'),
+              onChange: function (event) { setQuery(event.target.value) }
+            }),
+            el('select', {
+              className: 'eh-select',
+              value: source,
+              'aria-label': t('skillPicker.allSources'),
+              onChange: function (event) { setSource(event.target.value) }
+            },
+              el('option', { value: 'all' }, t('skillPicker.allSources')),
+              sourceList.map(function (label) {
+                return el('option', { key: label, value: label }, label)
+              })),
+            el('button', {
+              className: 'eh-btn eh-btn-sm', type: 'button', disabled: loading || busy,
+              onClick: function () { setTick(function (n) { return n + 1 }) }
+            }, t('skillPicker.refresh'))),
+          error !== '' ? el('p', { className: 'eh-form-error', role: 'alert' }, error) : null,
+          loading
+            ? el('div', { className: 'eh-picker-empty' }, t('skillPicker.loading'))
+            : filtered.length === 0
+              ? el('div', { className: 'eh-picker-empty' },
+                  items.length === 0 ? t('skillPicker.empty') : t('skillPicker.noMatch'),
+                  el('span', { className: 'eh-hint' },
+                    items.length === 0 ? t('skillPicker.emptyHint') : t('skillPicker.noMatchHint')))
+              : el('div', { className: 'eh-picker-list' }, rows),
+          el('div', { className: 'eh-picker-foot' },
+            el('span', { className: 'eh-hint' }, t('skillPicker.selected', { n: selectedCount })),
+            el('button', { className: 'eh-btn', type: 'button', disabled: busy, onClick: props.onClose }, t('skillPicker.cancel')),
+            el('button', {
+              className: 'eh-btn', type: 'button', 'data-variant': 'primary',
+              disabled: busy || selectedCount === 0,
+              onClick: confirm
+            }, busy ? t('skillPicker.importing') : t('skillPicker.import')))))
+    }
+
+    /**
      * 技能编辑器：卡片式折叠列表，新建/编辑/预览共用。
      */
     function SkillsEditor (props) {
@@ -3371,6 +3805,9 @@ window.__ModuleLoader__.load({
       var openState = React.useState({})
       var open = openState[0]
       var setOpen = openState[1]
+      var pickerOpenState = React.useState(false)
+      var pickerOpen = pickerOpenState[0]
+      var setPickerOpen = pickerOpenState[1]
 
       function toggle (key) {
         setOpen(function (previous) {
@@ -3473,27 +3910,65 @@ window.__ModuleLoader__.load({
               el(Icon, { name: 'plus', size: 12 }), ' ', t('edit.addSkill')),
         readOnly
           ? null
-          : el('div', { className: 'eh-skill-import' },
-              el('input', {
-                className: 'eh-input',
-                type: 'text',
-                value: skillPath,
-                placeholder: t('edit.skillPathPlaceholder'),
-                onChange: function (event) { props.onPathChange(event.target.value) }
-              }),
+          : el('div', { className: 'eh-skill-actions' },
               el('button', {
                 className: 'eh-btn', type: 'button',
                 disabled: props.skillBusy === true,
-                onClick: props.paths !== undefined ? props.onAddPath : props.onImport
+                onClick: function () { setPickerOpen(true) }
               },
-                props.skillBusy === true ? el('span', { className: 'eh-spin', 'aria-hidden': 'true' }) : null,
                 props.skillBusy === true
-                  ? t('edit.skillImporting')
-                  : t(props.paths !== undefined ? 'create.addSkillPath' : 'edit.skillImport'))),
+                  ? el('span', { className: 'eh-spin', 'aria-hidden': 'true' })
+                  : el(Icon, { name: 'plus', size: 12 }),
+                ' ', t('skillPicker.choose'))),
+        readOnly
+          ? null
+          : el('details', { className: 'eh-skill-manual' },
+              el('summary', null, t('edit.skillManual')),
+              el('p', { className: 'eh-hint' }, t('edit.skillManualHint')),
+              el('div', { className: 'eh-skill-import' },
+                el('input', {
+                  className: 'eh-input',
+                  type: 'text',
+                  value: skillPath,
+                  placeholder: t('edit.skillPathPlaceholder'),
+                  onChange: function (event) { props.onPathChange(event.target.value) }
+                }),
+                el('button', {
+                  className: 'eh-btn', type: 'button',
+                  disabled: props.skillBusy === true,
+                  onClick: props.paths !== undefined ? props.onAddPath : props.onImport
+                },
+                  props.skillBusy === true ? el('span', { className: 'eh-spin', 'aria-hidden': 'true' }) : null,
+                  props.skillBusy === true
+                    ? t('edit.skillImporting')
+                    : t(props.paths !== undefined ? 'create.addSkillPath' : 'edit.skillImport')))),
         pathNodes.length > 0
           ? el('ul', { className: 'eh-trash-list' }, pathNodes)
           : null,
-        skillNotice !== '' ? el('p', { className: 'eh-hint' }, skillNotice) : null)
+        el('p', { className: 'eh-hint eh-ai-hint' },
+          t('edit.skillsAiHint', { name: strOf(props.expertName) || t('studio.thisExpert') })),
+        skillNotice !== '' ? el('p', { className: 'eh-hint' }, skillNotice) : null,
+        pickerOpen
+          ? el(SkillPicker, {
+              t: t,
+              open: true,
+              library: props.library,
+              sessionId: props.sessionId,
+              workspace: props.workspace,
+              expertId: props.expertId,
+              pendingPaths: paths,
+              currentSkills: skills.map(function (row) { return strOf(row.name) }).filter(function (name) { return name !== '' }),
+              onClose: function () { setPickerOpen(false) },
+              onConfirm: function (selectedPaths) {
+                if (props.paths !== undefined && typeof props.onAddPaths === 'function') {
+                  props.onAddPaths(selectedPaths)
+                  return true
+                }
+                if (typeof props.onImportPaths === 'function') return props.onImportPaths(selectedPaths)
+                return false
+              }
+            })
+          : null)
     }
 
     function CreateForm (props) {
@@ -3589,6 +4064,19 @@ window.__ModuleLoader__.load({
         if (formError !== '') setFormError('')
       }
 
+      function addSkillPaths (paths) {
+        var list = arrOf(paths).map(function (value) { return strOf(value) }).filter(function (value) { return value !== '' })
+        if (list.length === 0) return
+        setPendingPaths(function (previous) {
+          var next = previous.slice()
+          for (var i = 0; i < list.length; i++) {
+            if (!next.includes(list[i])) next.push(list[i])
+          }
+          return next
+        })
+        if (formError !== '') setFormError('')
+      }
+
       function removeSkillPath (index) {
         setPendingPaths(function (previous) {
           return previous.filter(function (_path, at) { return at !== index })
@@ -3658,6 +4146,7 @@ window.__ModuleLoader__.load({
       return el('div', { className: 'eh-panel-card' },
         el('h3', { className: 'eh-card-title' }, t('create.title')),
         el('p', { className: 'eh-hint' }, t('create.subtitle')),
+        el('p', { className: 'eh-hint eh-ai-hint' }, t('create.aiEditHint')),
         el(ExpertFormFields, {
           t: t,
           idPrefix: 'eh-create',
@@ -3680,11 +4169,16 @@ window.__ModuleLoader__.load({
           skills: skills,
           paths: pendingPaths,
           skillPath: skillPath,
+          library: props.library,
+          sessionId: props.sessionId,
+          workspace: props.workspace,
+          expertName: strOf(values.displayName) || t('studio.thisExpert'),
           onChangeSkill: changeSkillRow,
           onAddSkill: addSkillRow,
           onRemoveSkill: removeSkillRow,
           onPathChange: setSkillPath,
           onAddPath: addSkillPath,
+          onAddPaths: addSkillPaths,
           onRemovePath: removeSkillPath
         }),
         formError !== '' ? el('p', { className: 'eh-form-error', role: 'alert' }, formError) : null,
@@ -4670,6 +5164,7 @@ window.__ModuleLoader__.load({
           el('div', { className: 'eh-head-main' },
             el('h2', { className: 'eh-title' }, t('page.title')),
             el('p', { className: 'eh-subtitle' }, t('page.subtitle')),
+            el('p', { className: 'eh-hint eh-ai-hint' }, t('page.aiEditHint')),
             el('div', { className: 'eh-counts' },
               el('span', { className: 'eh-count' }, t('page.countInstalled', { n: headInstalled })),
               el('span', { className: 'eh-count' }, t('page.countAvailable', { n: headAvailable })),
