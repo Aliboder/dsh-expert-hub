@@ -1,0 +1,24 @@
+name: ci
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: [20, 22]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund --no-package-lock
+      - name: Syntax check
+        run: node --check index.js && node --check client.js
+      - name: Tests
+        run: node test/run.mjs
